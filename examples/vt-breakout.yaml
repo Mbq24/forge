@@ -1,0 +1,75 @@
+# VT-Breakout — EMA alignment + candlestick confirmation
+#
+# This indicator detects breakouts by combining:
+#   1. EMA alignment (bullish ordering of 5/8/13/21)
+#   2. Candlestick pattern confirmation (hammer or bullish engulfing)
+#   3. Volume confirmation
+#
+# Inspired by volatility-trader's Master Indicator Suite
+# and Legacy Class EMA methodology.
+
+name: "VT-Breakout"
+description: "EMA alignment breakout with candle + volume confirmation"
+timeframe: "1h"
+
+# ── Standard indicators ─────────────────────────────────────────────────────
+indicators:
+  - id: ema_5
+    type: ema
+    params: { period: 5 }
+  - id: ema_8
+    type: ema
+    params: { period: 8 }
+  - id: ema_13
+    type: ema
+    params: { period: 13 }
+  - id: ema_21
+    type: ema
+    params: { period: 21 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+  - id: atr
+    type: atr
+    params: { period: 14 }
+
+# ── VT-derived indicators ───────────────────────────────────────────────────
+compounds:
+  - id: alignment
+    type: ema_alignment
+    params:
+      emas: [ema_5, ema_8, ema_13, ema_21]
+  - id: spread
+    type: ema_spread
+    params:
+      emas: [ema_5, ema_8, ema_13, ema_21]
+  - id: pull
+    type: pull_count
+    params:
+      ema: ema_5
+
+# ── Candlestick patterns ────────────────────────────────────────────────────
+patterns:
+  - hammer
+  - bullish_engulfing
+  - doji
+
+# ── What to plot ────────────────────────────────────────────────────────────
+plots:
+  - ref: ema_5
+    style: line
+    color: "#2962FF"
+  - ref: ema_8
+    style: line
+    color: "#00C853"
+  - ref: ema_13
+    style: line
+    color: "#FF6D00"
+  - ref: ema_21
+    style: line
+    color: "#D50000"
+
+# ── Entry/Exit conditions ───────────────────────────────────────────────────
+signals:
+  entry: "alignment == 1 AND (hammer OR bullish_engulfing)"
+  exit: "pull >= 3 OR rsi > 70"

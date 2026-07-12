@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""
+tv-indicator — CLI for DockerTVWebhook indicator DSL.
+
+Usage:
+  tv-indicator compile examples/vt-breakout.yaml --to pinescript
+  tv-indicator compile examples/vt-breakout.yaml --to local --data data.csv
+  tv-indicator list-indicators
+  tv-indicator validate examples/vt-breakout.yaml
+"""
+
+import argparse
+import sys
+import os
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from dsl.schema import IndicatorDSL
+from dsl.indicators import list_indicators
+from generators.pinescript import generate_pinescript
+from generators.local import compute_indicators
+import pandas as pd
+
+
+def main():
+    parser = argparse.ArgumentParser(description="DockerTVWebhook Indicator DSL Compiler")
+    subparsers = parser.add_subparsers(dest="command")
+
+    # ── compile ──
+    compile_cmd = subparsers.add_parser("compile", help="Compile a DSL to output")
+    compile_cmd.add_argument("dsl_file", help="Path to YAML DSL definition")
+    compile_cmd.add_argument("--to", choices=["pinescript", "local"], default="pinescript",
+                             help="Output target")
+    compile_cmd.add_argument("--data", help="CSV file for local computation")
+
+    # ── validate ──
+    validate_cmd = subparsers.add_parser("validate", help="Validate a DSL definition")
+    validate_cmd.add_argument("dsl_file", help="Path to YAML DSL definition")
+
+    # ── list-indicators ──
+    subparsers.add_parser("list-indicators", help="List all available indicator types")
+
+    args = parser.parse_args()
+
+    if args.command == "compile":
+        _handle_compile(args)
+    elif args.command == "validate":
+        _handle_validate(args)
+    elif args.command == "list-indicators":
+        _handle_list()
+    else:
+        parser.print_help()
+
+
+def _handle_compile(args):
+    dsl = IndicatorDSL.from_yaml_file(args.dsl_file)
+    errors = dsl.validate()
+    if errors:
+        print("❌ Validation errors:")
+        for e in errors:
+            print(f"  - {e}")
+        sys.exit(1)
+
+    if args.to == "pinescript":
+        code = generate_pinescript(dsl)
+        print(code)
+
+    elif args.to == "local":
+        if not args.data:
+            print("❌ --data <csv> required for local computation")
+            sys.exit(1)
+        df = pd.read_csv(args.data)
+        result = compute_indicators(df, dsl)
+        print(result.to_csv(index=False))
+
+
+def _handle_validate(args):
+    dsl = IndicatorDSL.from_yaml_file(args.dsl_file)
+    errors = dsl.validate()
+    if errors:
+        print(f"❌ {args.dsl_file} — {len(errors)} error(s):")
+        for e in errors:
+            print(f"  - {e}")
+        sys.exit(1)
+    else:
+        print(f"✅ {args.dsl_file} — valid")
+        print(f"   Indicators: {len(dsl.indicators)}")
+        print(f"   Compounds:  {len(dsl.compounds)}")
+        print(f"   Patterns:   {dsl.patterns}")
+        print(f"   Signals:    {list(dsl.signals.keys())}")
+
+
+def _handle_list():
+    indicators = list_indicators()
+    print(f"{'Type':<20} {'Category':<18} {'Description'}")
+    print("-" * 80)
+    for ind in indicators:
+        print(f"{ind.type_name:<20} {ind.category:<18} {ind.description[:60]}")
+    print()
+    print("Candlestick patterns available in signal conditions:")
+    from dsl.indicators import PATTERN_MAP
+    for name in sorted(PATTERN_MAP.keys()):
+        print(f"  - {name}")
+
+
+if __name__ == "__main__":
+    main()

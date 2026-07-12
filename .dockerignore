@@ -1,0 +1,11 @@
+node_modules/
+.git/
+.qodo/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+web/node_modules/
+venv*/
+*.db
+*.csv

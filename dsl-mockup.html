@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DockerTVWebhook — Indicator DSL Demo</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0b1120;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 24px;
+}
+h1 { font-size: 22px; color: #f1f5f9; letter-spacing: -0.5px; }
+h2 { font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 28px; }
+h3 { font-size: 13px; color: #e2e8f0; margin-bottom: 8px; }
+.header-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid #1e293b; padding-bottom: 16px; margin-bottom: 24px;
+}
+.header-bar .subtitle { color: #64748b; font-size: 11px; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 6px; }
+.grid { display: grid; gap: 16px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.card {
+  background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 16px;
+}
+.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.card-dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-cyan { background: #22d3ee; }
+.dot-emerald { background: #34d399; }
+.dot-violet { background: #a78bfa; }
+.dot-rose { background: #fb7185; }
+.dot-amber { background: #fbbf24; }
+.dot-orange { background: #fb923c; }
+
+pre {
+  background: #020617; border: 1px solid #1e293b; border-radius: 6px;
+  padding: 12px; font-size: 11px; line-height: 1.6; overflow-x: auto;
+  color: #94a3b8;
+}
+code .key { color: #22d3ee; }
+code .string { color: #a78bfa; }
+code .comment { color: #475569; font-style: italic; }
+code .number { color: #34d399; }
+code .keyword { color: #fb7185; }
+code .fn { color: #fbbf24; }
+
+.tag {
+  display: inline-block; background: rgba(34, 211, 238, 0.1); color: #22d3ee;
+  border: 1px solid rgba(34, 211, 238, 0.3); border-radius: 4px;
+  padding: 2px 8px; font-size: 10px; font-weight: 500;
+}
+.tag-emerald { background: rgba(52, 211, 153, 0.1); color: #34d399; border-color: rgba(52, 211, 153, 0.3); }
+.tag-violet { background: rgba(167, 139, 250, 0.1); color: #a78bfa; border-color: rgba(167, 139, 250, 0.3); }
+.tag-rose { background: rgba(251, 113, 133, 0.1); color: #fb7185; border-color: rgba(251, 113, 133, 0.3); }
+.tag-amber { background: rgba(251, 191, 36, 0.1); color: #fbbf24; border-color: rgba(251, 191, 36, 0.3); }
+
+.vt-concept {
+  border-left: 3px solid #22d3ee; padding: 12px; margin-bottom: 8px;
+  background: rgba(15, 23, 42, 0.6); border-radius: 0 6px 6px 0;
+}
+.vt-concept .title { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+.vt-concept .desc { font-size: 10px; color: #64748b; line-height: 1.5; }
+.vt-concept .code { font-size: 10px; color: #a78bfa; margin-top: 4px; }
+
+#chart { width: 100%; height: 400px; border-radius: 6px; }
+.signal-flow {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 16px; background: #020617; border-radius: 6px; border: 1px solid #1e293b;
+  margin-top: 12px;
+}
+.signal-flow .node {
+  background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+  padding: 8px 12px; font-size: 10px; text-align: center;
+}
+.signal-flow .arrow { color: #475569; font-size: 16px; }
+.signal-flow .node.primary { border-color: #22d3ee; }
+.signal-flow .node.success { border-color: #34d399; }
+.signal-flow .node.danger { border-color: #fb7185; }
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span class="status-dot"></span>
+      <h1>DockerTVWebhook — Indicator DSL</h1>
+    </div>
+    <div class="subtitle" style="margin-top: 4px;">Declarative indicator builder · YAML → Pine Script v5 · Local compute engine</div>
+  </div>
+  <div>
+    <span class="tag">dsl</span>
+    <span class="tag tag-emerald">pinescript</span>
+    <span class="tag tag-violet">vt-concepts</span>
+    <span class="tag tag-amber">local</span>
+  </div>
+</div>
+
+<!-- Architecture Overview -->
+<div class="card" style="margin-bottom: 16px;">
+  <div class="card-header"><div class="card-dot dot-cyan"></div><h3>System Architecture</h3></div>
+  <div class="signal-flow">
+    <div class="node primary">YAML DSL<br><span style="color:#64748b;font-size:9px;">indicator definition</span></div>
+    <span class="arrow">→</span>
+    <div class="node success">Parser<br><span style="color:#64748b;font-size:9px;">validate + resolve</span></div>
+    <span class="arrow">→</span>
+    <div class="node">Compiler<br><span style="color:#64748b;font-size:9px;">AST generation</span></div>
+    <span class="arrow" style="color:#22d3ee;">┌─</span>
+    <div class="node primary">Pine Script v5<br><span style="color:#64748b;font-size:9px;">→ TradingView</span></div>
+    <span class="arrow" style="color:#22d3ee;">└─</span>
+    <div class="node success">Local Engine<br><span style="color:#64748b;font-size:9px;">→ pandas / Plotly</span></div>
+    <span class="arrow">→</span>
+    <div class="node danger">Signals<br><span style="color:#64748b;font-size:9px;">entry / exit / stop</span></div>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-bottom: 16px;">
+  <!-- YAML DSL -->
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-cyan"></div><h3>DSL: vt-breakout.yaml</h3></div>
+    <pre><code><span class="comment"># VT-Breakout — EMA alignment + candlestick confirmation</span>
+<span class="key">name</span>: <span class="string">"VT-Breakout"</span>
+<span class="key">timeframe</span>: <span class="string">"1h"</span>
+<span class="key">indicators</span>:
+  - <span class="key">id</span>: <span class="string">ema_5</span>    <span class="key">type</span>: <span class="string">ema</span>    <span class="key">params</span>: { <span class="key">period</span>: <span class="number">5</span> }
+  - <span class="key">id</span>: <span class="string">ema_8</span>    <span class="key">type</span>: <span class="string">ema</span>    <span class="key">params</span>: { <span class="key">period</span>: <span class="number">8</span> }
+  - <span class="key">id</span>: <span class="string">ema_13</span>   <span class="key">type</span>: <span class="string">ema</span>    <span class="key">params</span>: { <span class="key">period</span>: <span class="number">13</span> }
+  - <span class="key">id</span>: <span class="string">ema_21</span>   <span class="key">type</span>: <span class="string">ema</span>    <span class="key">params</span>: { <span class="key">period</span>: <span class="number">21</span> }
+  - <span class="key">id</span>: <span class="string">rsi</span>     <span class="key">type</span>: <span class="string">rsi</span>    <span class="key">params</span>: { <span class="key">period</span>: <span class="number">14</span> }
+  - <span class="key">id</span>: <span class="string">atr</span>     <span class="key">type</span>: <span class="string">atr</span>    <span class="key">params</span>: { <span class="key">period</span>: <span class="number">14</span> }
+<span class="key">compounds</span>:
+  - <span class="key">id</span>: <span class="string">alignment</span>  <span class="key">type</span>: <span class="string">ema_alignment</span>
+    <span class="key">params</span>: { <span class="key">emas</span>: [ema_5, ema_8, ema_13, ema_21] }
+  - <span class="key">id</span>: <span class="string">spread</span>    <span class="key">type</span>: <span class="string">ema_spread</span>
+    <span class="key">params</span>: { <span class="key">emas</span>: [ema_5, ema_8, ema_13, ema_21] }
+  - <span class="key">id</span>: <span class="string">pull</span>      <span class="key">type</span>: <span class="string">pull_count</span>
+    <span class="key">params</span>: { <span class="key">ema</span>: ema_5 }
+<span class="key">patterns</span>: [hammer, bullish_engulfing, doji]
+<span class="key">signals</span>:
+  <span class="key">entry</span>: <span class="string">"alignment == 1 AND (hammer OR bullish_engulfing)"</span>
+  <span class="key">exit</span>:  <span class="string">"pull >= 3 OR rsi > 70"</span>
+</code></pre>
+  </div>
+
+  <!-- Pine Script Output -->
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-emerald"></div><h3>Generated Pine Script v5</h3></div>
+    <pre style="max-height: 420px;"><code><span class="comment">//@version=5</span>
+indicator(<span class="string">"VT-Breakout"</span>, overlay=false)
+
+<span class="comment">// Standard indicators</span>
+ema_5  = ta.ema(close, <span class="number">5</span>)
+ema_8  = ta.ema(close, <span class="number">8</span>)
+ema_13 = ta.ema(close, <span class="number">13</span>)
+ema_21 = ta.ema(close, <span class="number">21</span>)
+rsi    = ta.rsi(close, <span class="number">14</span>)
+atr    = ta.atr(<span class="number">14</span>)
+
+<span class="comment">// VT concepts</span>
+alignment = ema_5 > ema_8 and ema_8 > ema_13
+         and ema_13 > ema_21 ? <span class="number">1</span> : (
+         ema_5 < ema_8 and ema_8 < ema_13
+         and ema_13 < ema_21 ? -<span class="number">1</span> : <span class="number">0</span>)
+
+spread = (math.max(ema_5, ema_8, ema_13, ema_21)
+       - math.min(ema_5, ema_8, ema_13, ema_21)) / close
+
+var pull = <span class="number">0</span>
+pull := close > ema_5 ? nz(pull[<span class="number">1</span>]) + <span class="number">1</span> : <span class="number">0</span>
+
+hammer = ta.hammer(open, high, low, close)
+bullish_engulfing = ta.bullishengulfing(open, high, low, close)
+
+<span class="comment">// Signals</span>
+entry = (alignment == <span class="number">1.0</span> and
+         (hammer or bullish_engulfing))
+exit  = (pull >= <span class="number">3.0</span> or rsi > <span class="number">70.0</span>)
+
+plot(ema_5, <span class="string">"EMA 5"</span>, color.blue)
+plot(ema_8, <span class="string">"EMA 8"</span>, color.green)
+plotshape(entry, style=shape.triangleup,
+          location=location.belowbar, color=color.green)
+plotshape(exit, style=shape.triangledown,
+          location=location.abovebar, color=color.red)
+</code></pre>
+  </div>
+</div>
+
+<!-- Live Chart -->
+<div class="card" style="margin-bottom: 16px;">
+  <div class="card-header"><div class="card-dot dot-amber"></div><h3>Live Demo — Computed vt-breakout Indicators</h3></div>
+  <div id="chart"></div>
+</div>
+
+<!-- VT Concepts -->
+<div style="margin-bottom: 16px;">
+  <h2>VT Concepts (from volatility-trader Master Indicator Suite)</h2>
+  <div class="grid grid-3">
+    <div class="vt-concept">
+      <div class="title"><span class="tag tag-emerald" style="margin-right: 6px;">compound</span> EMA Alignment</div>
+      <div class="desc">Bullish ordering check across a family of EMAs (fastest → slowest). Returns +1 (full bull), -1 (full bear), or 0 (mixed).</div>
+      <div class="code">alignment = bull_ordered ? 1 : bear_ordered ? -1 : 0</div>
+    </div>
+    <div class="vt-concept">
+      <div class="title"><span class="tag tag-emerald" style="margin-right: 6px;">compound</span> EMA Spread</div>
+      <div class="desc">Distance between widest and narrowest EMA, normalised by close. Tight spread = consolidation = breakout imminent.</div>
+      <div class="code">spread = (max_ema - min_ema) / close</div>
+    </div>
+    <div class="vt-concept">
+      <div class="title"><span class="tag tag-emerald" style="margin-right: 6px;">compound</span> Candle Proximity</div>
+      <div class="desc">Distance from close to a reference EMA, expressed in ATR units. Body touching EMA = entry trigger (Legacy Class concept).</div>
+      <div class="code">proximity = (close - ema) / atr(14)</div>
+    </div>
+    <div class="vt-concept">
+      <div class="title"><span class="tag tag-emerald" style="margin-right: 6px;">compound</span> Pull Count</div>
+      <div class="desc">Consecutive closes above the 5 EMA. After 3+, expect a pullback / mean reversion candle.</div>
+      <div class="code">pull = close > ema_5 ? prev + 1 : 0</div>
+    </div>
+    <div class="vt-concept">
+      <div class="title"><span class="tag tag-violet" style="margin-right: 6px;">pattern</span> Candlestick Patterns</div>
+      <div class="desc">10 built-in patterns: doji, hammer, shooting_star, bullish/bearish_engulfing, harami, morning/evening_star, three_white_soldiers, three_black_crows.</div>
+      <div class="code">ta.hammer(open, high, low, close)</div>
+    </div>
+    <div class="vt-concept">
+      <div class="title"><span class="tag tag-violet" style="margin-right: 6px;">feature</span> Session Encoding</div>
+      <div class="desc">Asian (0-8 UTC), London (8-16), NY (13-22), London+NY overlap. Used in signal conditions for time-aware trading.</div>
+      <div class="code">session_ny = hour >= 13 and hour < 22</div>
+    </div>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="grid grid-3">
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-cyan"></div><h3>Available Indicators</h3></div>
+    <ul style="font-size: 10px; color: #94a3b8; list-style: none; line-height: 2;">
+      <li><span style="color:#22d3ee;">●</span> ema · sma · rsi · atr · bb</li>
+      <li><span style="color:#34d399;">●</span> stochastic · macd · cci · vwap</li>
+      <li><span style="color:#a78bfa;">●</span> volume · obv</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-violet"></div><h3>DSL Features</h3></div>
+    <ul style="font-size: 10px; color: #94a3b8; list-style: none; line-height: 2;">
+      <li><span style="color:#a78bfa;">●</span> YAML-defined indicator combos</li>
+      <li><span style="color:#a78bfa;">●</span> Compound indicators (VT concepts)</li>
+      <li><span style="color:#a78bfa;">●</span> Expression parser (AND/OR/NOT)</li>
+      <li><span style="color:#a78bfa;">●</span> Dual output: Pine Script + Local</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-dot dot-rose"></div><h3>CLI Commands</h3></div>
+    <pre style="font-size: 9px; padding: 8px; border: none;"><code>$ tv-indicator validate examples/vt-breakout.yaml
+$ tv-indicator compile vt.yaml --to pinescript
+$ tv-indicator compile vt.yaml --to local --data data.csv
+$ tv-indicator list-indicators</code></pre>
+  </div>
+</div>
+
+<script>
+const data = {
+  dates: ["2024-01-11 10:00","2024-01-11 11:00","2024-01-11 12:00","2024-01-11 13:00","2024-01-11 14:00","2024-01-11 15:00","2024-01-11 16:00","2024-01-11 17:00","2024-01-11 18:00","2024-01-11 19:00","2024-01-11 20:00","2024-01-11 21:00","2024-01-11 22:00","2024-01-11 23:00","2024-01-12 00:00","2024-01-12 01:00","2024-01-12 02:00","2024-01-12 03:00","2024-01-12 04:00","2024-01-12 05:00","2024-01-12 06:00","2024-01-12 07:00","2024-01-12 08:00","2024-01-12 09:00","2024-01-12 10:00","2024-01-12 11:00","2024-01-12 12:00","2024-01-12 13:00","2024-01-12 14:00","2024-01-12 15:00","2024-01-12 16:00","2024-01-12 17:00","2024-01-12 18:00","2024-01-12 19:00","2024-01-12 20:00","2024-01-12 21:00","2024-01-12 22:00","2024-01-12 23:00","2024-01-13 00:00","2024-01-13 01:00","2024-01-13 02:00","2024-01-13 03:00","2024-01-13 04:00","2024-01-13 05:00","2024-01-13 06:00","2024-01-13 07:00","2024-01-13 08:00","2024-01-13 09:00","2024-01-13 10:00","2024-01-13 11:00"],
+  close: [99.26,99.6,100.59,100.91,100.31,100.04,100.54,100.26,100.52,100.75,100.45,100.6,99.19,98.66,98.71,98.05,98.54,98.07,97.81,98.01,98.63,98.22,98.55,98.5,98.21,98.09,98.42,98.23,98.03,98.14,98.1,98.29,99.03,98.7,99.35,98.57,98.44,98.64,98.92,98.5,98.51,98.26,98.12,98.44,98.66,98.22,98.61,98.66,99.04,99.37],
+  ema5: [99.4,99.47,99.84,100.2,100.23,100.17,100.29,100.28,100.36,100.49,100.48,100.52,100.08,99.6,99.31,98.89,98.77,98.54,98.29,98.2,98.34,98.3,98.38,98.42,98.35,98.26,98.31,98.29,98.2,98.18,98.16,98.2,98.48,98.55,98.82,98.74,98.64,98.64,98.73,98.65,98.61,98.49,98.37,98.39,98.48,98.39,98.46,98.53,98.7,98.92],
+  ema8: [99.42,99.46,99.71,99.98,100.05,100.05,100.16,100.18,100.26,100.37,100.38,100.43,100.16,99.82,99.58,99.24,99.08,98.86,98.62,98.49,98.52,98.45,98.47,98.48,98.42,98.35,98.36,98.33,98.27,98.24,98.21,98.23,98.41,98.47,98.67,98.65,98.6,98.61,98.68,98.64,98.61,98.53,98.44,98.44,98.49,98.43,98.47,98.51,98.63,98.79],
+  ema13: [99.46,99.48,99.64,99.82,99.89,99.91,100.0,100.04,100.11,100.2,100.24,100.29,100.13,99.92,99.75,99.51,99.37,99.18,98.99,98.85,98.82,98.73,98.7,98.67,98.61,98.53,98.52,98.48,98.41,98.37,98.34,98.33,98.43,98.47,98.59,98.59,98.57,98.58,98.63,98.61,98.59,98.55,98.49,98.48,98.5,98.46,98.48,98.51,98.58,98.7],
+  ema21: [99.51,99.51,99.61,99.73,99.78,99.81,99.87,99.91,99.96,100.03,100.07,100.12,100.04,99.91,99.8,99.64,99.54,99.41,99.26,99.15,99.1,99.02,98.98,98.93,98.87,98.8,98.76,98.71,98.65,98.61,98.56,98.54,98.58,98.59,98.66,98.65,98.63,98.63,98.66,98.65,98.63,98.6,98.55,98.54,98.55,98.52,98.53,98.54,98.59,98.66],
+  rsi: [45.29,52.55,67.0,70.41,57.61,52.66,60.03,54.58,58.64,62.07,55.14,57.94,34.93,29.82,30.96,24.99,35.62,30.8,28.32,33.15,45.79,39.98,46.33,45.48,40.59,38.61,46.78,42.98,39.11,42.39,41.56,47.97,65.18,55.66,66.6,49.62,47.26,51.26,56.67,47.59,47.81,42.37,39.5,48.81,54.15,43.54,52.98,54.18,62.26,68.01],
+  exit: [0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1]
+};
+
+// Build exit signal points
+const exitX = [], exitY = [];
+for (let i = 0; i < data.exit.length; i++) {
+  if (data.exit[i]) { exitX.push(data.dates[i]); exitY.push(data.close[i]); }
+}
+
+const priceTrace = {
+  x: data.dates, y: data.close,
+  type: 'scatter', mode: 'lines',
+  name: 'Close', line: { color: '#e2e8f0', width: 1.5 }
+};
+const ema5Trace = {
+  x: data.dates, y: data.ema5,
+  type: 'scatter', mode: 'lines',
+  name: 'EMA 5', line: { color: '#2962FF', width: 1.2 }
+};
+const ema8Trace = {
+  x: data.dates, y: data.ema8,
+  type: 'scatter', mode: 'lines',
+  name: 'EMA 8', line: { color: '#00C853', width: 1.2 }
+};
+const ema13Trace = {
+  x: data.dates, y: data.ema13,
+  type: 'scatter', mode: 'lines',
+  name: 'EMA 13', line: { color: '#FF6D00', width: 1.2 }
+};
+const ema21Trace = {
+  x: data.dates, y: data.ema21,
+  type: 'scatter', mode: 'lines',
+  name: 'EMA 21', line: { color: '#D50000', width: 1.2 }
+};
+const exitTrace = {
+  x: exitX, y: exitY,
+  type: 'scatter', mode: 'markers',
+  name: 'Exit Signal (rsi>70 ∨ pull≥3)',
+  marker: { color: '#fb7185', size: 10, symbol: 'triangle-down' }
+};
+const layout = {
+  paper_bgcolor: '#0f172a',
+  plot_bgcolor: '#0f172a',
+  font: { color: '#94a3b8', family: 'JetBrains Mono, monospace' },
+  margin: { t: 20, r: 20, b: 40, l: 50 },
+  xaxis: { gridcolor: '#1e293b', tickfont: { size: 9 } },
+  yaxis: { gridcolor: '#1e293b', tickfont: { size: 9 } },
+  hovermode: 'x unified',
+  legend: { font: { size: 9 }, orientation: 'h', y: 1.1 },
+  dragmode: 'pan'
+};
+
+Plotly.newPlot('chart', [
+  priceTrace, ema5Trace, ema8Trace, ema13Trace, ema21Trace, exitTrace
+], layout, { responsive: true, displayModeBar: false });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,15 @@
+mlnet (model generator)
+
+    - Phase 0: create model from analysis and extracted features (what we deem important)
+    - Phase 1: analyze datasets and extract what's important for the model (locally)
+    - Phase 2: create the model and review results 
+    - Phase 3: model on hand and we can pull it down to forward test (dockerized, exposed endpoint)
+
+tradingview (webhook code, forward testing)
+
+    - Phase 1: web app to receive webhook min data and call model accordingly 
+    - Phase 2: review and analyze results
+    - Phase 3: adjust, refine, tweak, prune, repeat, etc. 
+
+    TWEAKING and REFINEMENT: 
+        - will use indicators.ipynb, tensor.ipynb, etc... (files used in the analysis)

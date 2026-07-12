@@ -1,0 +1,11 @@
+/app/RegressionModelClose/RegressionModelClose.Model/bin/Debug/netstandard2.0/MLModel.zip
+/app/RegressionModelClose/RegressionModelClose.Model/bin/Debug/netstandard2.0/RegressionModelClose.Model.deps.json
+/app/RegressionModelClose/RegressionModelClose.Model/bin/Debug/netstandard2.0/RegressionModelClose.Model.dll
+/app/RegressionModelClose/RegressionModelClose.Model/bin/Debug/netstandard2.0/RegressionModelClose.Model.pdb
+/app/RegressionModelClose/RegressionModelClose.Model/obj/Debug/netstandard2.0/RegressionModelClose.Model.csproj.AssemblyReference.cache
+/app/RegressionModelClose/RegressionModelClose.Model/obj/Debug/netstandard2.0/RegressionModelClose.Model.GeneratedMSBuildEditorConfig.editorconfig
+/app/RegressionModelClose/RegressionModelClose.Model/obj/Debug/netstandard2.0/RegressionModelClose.Model.AssemblyInfoInputs.cache
+/app/RegressionModelClose/RegressionModelClose.Model/obj/Debug/netstandard2.0/RegressionModelClose.Model.AssemblyInfo.cs
+/app/RegressionModelClose/RegressionModelClose.Model/obj/Debug/netstandard2.0/RegressionModelClose.Model.csproj.CoreCompileInputs.cache
+/app/RegressionModelClose/RegressionModelClose.Model/obj/Debug/netstandard2.0/RegressionModelClose.Model.dll
+/app/RegressionModelClose/RegressionModelClose.Model/obj/Debug/netstandard2.0/RegressionModelClose.Model.pdb
