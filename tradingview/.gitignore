@@ -1,0 +1,6 @@
+# Ignore env and .flaskenv files
+env
+.flaskenv
+
+__pycache__
+notes.txt

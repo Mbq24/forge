@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DockerTVWebhook{% endblock %}
+{% block nav_extra %}Webhook Data{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header">Signals (Price Data from Webhooks)</div>
+      <div class="card-body" style="padding:0;">
+        <div style="overflow-x:auto;">
+          <table class="table table-dark table-striped table-sm mb-0" style="font-size:0.78rem;background:transparent;">
+            <thead>
+              <tr>
+                <th>timestamp</th>
+                <th>ticker</th>
+                <th>action</th>
+                <th>contracts</th>
+                <th>price</th>
+                <th>open</th>
+                <th>high</th>
+                <th>low</th>
+                <th>close</th>
+                <th>volume</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for signal in signals|reverse %}
+              <tr>
+                <td>{{ signal.timestamp }}</td>
+                <td>{{ signal.ticker }}</td>
+                <td>{{ signal.order_action }}</td>
+                <td>{{ signal.order_contracts }}</td>
+                <td>{{ signal.order_price }}</td>
+                <td>{{ signal.open }}</td>
+                <td>{{ signal.high }}</td>
+                <td>{{ signal.low }}</td>
+                <td>{{ signal.close }}</td>
+                <td>{{ signal.volume }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-3">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">Lines (Trendline Conditions)</div>
+      <div class="card-body" style="padding:0;">
+        <div style="overflow-x:auto;">
+          <table class="table table-dark table-sm mb-0" style="font-size:0.78rem;background:transparent;">
+            <thead><tr><th>timestamp</th><th>ticker</th><th>condition</th></tr></thead>
+            <tbody>
+              {% for line in lines|reverse %}
+              <tr><td>{{ line.timestamp }}</td><td>{{ line.ticker }}</td><td>{{ line.condition }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-header">RSI</div>
+      <div class="card-body" style="padding:0;">
+        <div style="overflow-x:auto;">
+          <table class="table table-dark table-sm mb-0" style="font-size:0.78rem;background:transparent;">
+            <thead><tr><th>timestamp</th><th>rsi</th></tr></thead>
+            <tbody>
+              {% for r in rsi|reverse %}
+              <tr><td>{{ r.timestamp }}</td><td>{{ r.rsi }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-header">Stochastic</div>
+      <div class="card-body" style="padding:0;">
+        <div style="overflow-x:auto;">
+          <table class="table table-dark table-sm mb-0" style="font-size:0.78rem;background:transparent;">
+            <thead><tr><th>timestamp</th><th>stochastic</th></tr></thead>
+            <tbody>
+              {% for s in stochastic|reverse %}
+              <tr><td>{{ s.timestamp }}</td><td>{{ s.stochastic }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

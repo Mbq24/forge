@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}{{ dsl_name }} — DSL Detail{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <a href="/dsl" style="color:var(--text-dim);font-size:0.8rem;text-decoration:none;">← Back to DSLs</a>
+    <h4 style="color:var(--cyan);font-weight:600;margin:0;margin-top:4px;">{{ dsl_name }}</h4>
+  </div>
+  <div>
+    <span class="tag tag-cyan">{{ indicators|length }} indicators</span>
+    <span class="tag tag-emerald">{{ compounds|length }} compounds</span>
+    <span class="tag tag-amber">{{ timeframe }}</span>
+  </div>
+</div>
+
+<!-- Data controls -->
+<div class="card">
+  <div class="card-header">Data Source</div>
+  <div class="card-body">
+    <form method="GET" action="/dsl/{{ dsl_name }}" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label" style="font-size:0.75rem;color:var(--text-dim);">Ticker</label>
+        <select name="ticker" class="form-select">
+          {% for cat, syms in tickers.items() %}
+          <optgroup label="{{ cat|capitalize }}">
+            {% for s in syms %}
+            <option value="{{ s }}" {% if s == ticker %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" style="font-size:0.75rem;color:var(--text-dim);">Interval</label>
+        <select name="interval" class="form-select">
+          {% for iv in ['15m','30m','1h','4h','1d'] %}
+          <option value="{{ iv }}" {% if iv == interval %}selected{% endif %}>{{ iv }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" style="font-size:0.75rem;color:var(--text-dim);">Period</label>
+        <select name="period" class="form-select">
+          {% for p in ['5d','7d','1mo','3mo','6mo','1y'] %}
+          <option value="{{ p }}" {% if p == period %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" style="font-size:0.75rem;color:var(--text-dim);">Or use existing DB data</label>
+        <select name="source" class="form-select">
+          <option value="yfinance" {% if source == 'yfinance' %}selected{% endif %}>yFinance (live)</option>
+          <option value="db" {% if source == 'db' %}selected{% endif %}>SQLite DB (stored)</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Compute</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" style="background:rgba(251,113,133,0.1);border:1px solid var(--rose);color:var(--rose);font-size:0.85rem;">
+  {{ error }}
+</div>
+{% endif %}
+
+{% if chart_html %}
+<div class="row">
+  <!-- Chart -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between">
+        <span>Computed Indicators — {{ ticker }} ({{ interval }}, {{ period }})</span>
+        <span style="font-size:0.7rem;color:var(--text-dim);">{{ date_range }}</span>
+      </div>
+      <div class="card-body" style="padding:0.5rem;">
+        <div class="chart-container">{{ chart_html|safe }}</div>
+      </div>
+    </div>
+
+    <!-- Signal stats -->
+    <div class="card">
+      <div class="card-header">Signal Analysis</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-3">
+            <div class="stat-box emerald">
+              <div class="value">{{ stats.entry_count }}</div>
+              <div class="label">Entries</div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="stat-box rose">
+              <div class="value">{{ stats.exit_count }}</div>
+              <div class="label">Exits</div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="stat-box amber">
+              <div class="value">{{ stats.total_bars }}</div>
+              <div class="label">Total Bars</div>
+            </div>
+          </div>
+          <div class="col-3">
+            <div class="stat-box cyan">
+              <div class="value">{{ "%.1f"|format(stats.signal_density) }}%</div>
+              <div class="label">Signal Density</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:0.75rem;font-size:0.8rem;">
+          <strong>Entry condition:</strong>
+          <code style="color:var(--text-dim);font-size:0.75rem;">{{ entry_cond }}</code><br>
+          <strong>Exit condition:</strong>
+          <code style="color:var(--text-dim);font-size:0.75rem;">{{ exit_cond }}</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- YAML + Pine Script -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">DSL Definition (YAML)</div>
+      <div class="card-body" style="padding:0;">
+        <pre class="code-block" style="border-radius:0;border:none;max-height:350px;">{{ yaml_content }}</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between">
+        <span>Generated Pine Script v5</span>
+        <button class="btn btn-outline btn-sm" onclick="copyPine()" style="font-size:0.7rem;">Copy</button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <pre class="code-block" style="border-radius:0;border:none;max-height:350px;" id="pine-code">{{ pine_code }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function copyPine() {
+  const el = document.getElementById('pine-code');
+  const text = el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target;
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+</script>
+{% endblock %}

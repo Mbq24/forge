@@ -1,0 +1,9 @@
+flask==2.0
+redis
+python-dotenv
+requests
+pyyaml
+pandas
+numpy
+plotly
+yfinance

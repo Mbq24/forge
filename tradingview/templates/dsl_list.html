@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Indicator DSL — DockerTVWebhook{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 style="color:var(--cyan);font-weight:600;margin:0;">Indicator DSL</h4>
+  <span style="font-size:0.8rem;color:var(--text-dim);">{{ dsls|length }} definitions</span>
+</div>
+
+<div class="row">
+  {% for dsl in dsls %}
+  <div class="col-md-6 col-lg-4 mb-3">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ dsl.name }}</span>
+        <span>
+          <span class="tag tag-cyan">{{ dsl.indicators|length }} indicators</span>
+          <span class="tag tag-emerald">{{ dsl.compounds|length }} compounds</span>
+        </span>
+      </div>
+      <div class="card-body" style="padding:0.75rem;">
+        <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.5rem;">
+          {{ dsl.description[:120] }}{% if dsl.description|length > 120 %}…{% endif %}
+        </p>
+        <div style="margin-bottom:0.5rem;">
+          {% if dsl.patterns %}
+          {% for p in dsl.patterns %}
+          <span class="tag tag-violet">{{ p }}</span>
+          {% endfor %}
+          {% endif %}
+          <span class="tag tag-amber">{{ dsl.timeframe }}</span>
+        </div>
+        {% if dsl.signals %}
+        <div style="font-size:0.75rem;">
+          <span class="signal-entry">▲ entry:</span>
+          <code style="color:var(--text-dim);font-size:0.7rem;">{{ dsl.signals.get('entry', {}).condition if dsl.signals.get('entry') is mapping else dsl.signals.get('entry', '') }}</code>
+          <br>
+          <span class="signal-exit">▼ exit:</span>
+          <code style="color:var(--text-dim);font-size:0.7rem;">{{ dsl.signals.get('exit', {}).condition if dsl.signals.get('exit') is mapping else dsl.signals.get('exit', '') }}</code>
+        </div>
+        {% endif %}
+      </div>
+      <div style="padding:0.5rem 0.75rem;border-top:1px solid var(--border);">
+        <a href="/dsl/{{ dsl.name }}" class="btn btn-primary btn-sm w-100">Open & Test</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
