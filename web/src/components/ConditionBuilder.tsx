@@ -1,0 +1,199 @@
+import { useState, useEffect } from 'react'
+
+export interface CondRow {
+  id: string
+  left: string
+  op: string
+  rightType: 'value' | 'ref'
+  rightVal: string
+  logic: 'AND' | 'OR'
+}
+
+interface Props {
+  label: string
+  labelColor: string
+  availableRefs: string[]
+  value: string          // current condition string
+  onChange: (val: string) => void
+}
+
+const OPERATORS = ['>', '<', '>=', '<=', '==', '!=']
+
+let rowCounter = 0
+const newRow = (): CondRow => ({ id: `r${++rowCounter}`, left: '', op: '>', rightType: 'value', rightVal: '', logic: 'AND' })
+
+// Parse a condition string like "rsi < 30 AND hammer" into rows
+function parseToRows(expr: string, availableRefs: string[]): CondRow[] {
+  if (!expr.trim()) return [newRow()]
+  const rows: CondRow[] = []
+  // Split on AND/OR (case-insensitive, with word boundaries)
+  const parts = expr.split(/\b(AND|OR)\b/i)
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i].trim()
+    if (!part) continue
+    if (part.toUpperCase() === 'AND' || part.toUpperCase() === 'OR') {
+      if (rows.length > 0) rows[rows.length - 1].logic = part.toUpperCase() as 'AND' | 'OR'
+      continue
+    }
+    // Try to parse "left op right"
+    const match = part.match(/^(.+?)\s*(>=|<=|!=|==|>|<)\s*(.+)$/)
+    if (match) {
+      const [, left, op, rightRaw] = match
+      const right = rightRaw.trim()
+      const isRef = availableRefs.includes(right) || /^[a-zA-Z_]/.test(right)
+      rows.push({
+        id: `r${++rowCounter}`,
+        left: left.trim(),
+        op,
+        rightType: isRef ? 'ref' : 'value',
+        rightVal: right,
+        logic: 'AND',
+      })
+    } else {
+      // Just a bare identifier (like "hammer" or "doji")
+      rows.push({ id: `r${++rowCounter}`, left: part, op: '>', rightType: 'value', rightVal: '0', logic: 'AND' })
+    }
+  }
+  if (rows.length === 0) rows.push(newRow())
+  return rows
+}
+
+// Serialize rows back to a condition string
+function rowsToString(rows: CondRow[]): string {
+  const nonEmpty = rows.filter(r => r.left.trim() !== '')
+  return nonEmpty
+    .map((r, i) => {
+      const left = r.left
+      const right = r.rightType === 'ref' ? r.rightVal : r.rightVal
+      const clause = right ? `${left} ${r.op} ${right}` : left
+      const logic = i > 0 ? ` ${nonEmpty[i - 1].logic} ` : ''
+      return `${logic}${clause}`
+    })
+    .join('')
+    .replace(/^AND |^OR /, '')
+}
+
+export default function ConditionBuilder({ label, labelColor, availableRefs, value, onChange }: Props) {
+  const [rows, setRows] = useState<CondRow[]>(() => parseToRows(value, availableRefs))
+
+  useEffect(() => {
+    setRows(parseToRows(value, availableRefs))
+  }, [value, availableRefs])
+
+  const updateRow = (id: string, patch: Partial<CondRow>) => {
+    const next = rows.map(r => r.id === id ? { ...r, ...patch } : r)
+    setRows(next)
+    onChange(rowsToString(next))
+  }
+
+  const removeRow = (id: string) => {
+    const next = rows.filter(r => r.id !== id)
+    if (next.length === 0) next.push(newRow())
+    setRows(next)
+    onChange(rowsToString(next))
+  }
+
+  const addRow = () => {
+    const next = [...rows, newRow()]
+    setRows(next)
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: '0.75rem' }}>
+      <div className="card-header" style={{ color: labelColor }}>{label}</div>
+      <div className="card-body" style={{ padding: '0.5rem' }}>
+        {rows.map((row, i) => (
+          <div key={row.id}>
+            {i > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0' }}>
+                <select
+                  className="form-select"
+                  value={row.logic}
+                  onChange={e => updateRow(row.id, { logic: e.target.value as 'AND' | 'OR' })}
+                  style={{ width: 80, fontSize: '0.75rem', padding: '2px 4px' }}
+                >
+                  <option value="AND">AND</option>
+                  <option value="OR">OR</option>
+                </select>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>join</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Left: indicator/pattern/ref */}
+              <select
+                className="form-select"
+                value={row.left}
+                onChange={e => updateRow(row.id, { left: e.target.value })}
+                style={{ minWidth: 120, fontSize: '0.75rem', padding: '2px 4px' }}
+              >
+                <option value="">— select —</option>
+                {availableRefs.map(ref => (
+                  <option key={ref} value={ref}>{ref}</option>
+                ))}
+              </select>
+
+              {/* Operator */}
+              <select
+                className="form-select"
+                value={row.op}
+                onChange={e => updateRow(row.id, { op: e.target.value })}
+                style={{ width: 64, fontSize: '0.75rem', padding: '2px 4px' }}
+              >
+                {OPERATORS.map(op => (
+                  <option key={op} value={op}>{op}</option>
+                ))}
+              </select>
+
+              {/* Right side: value or ref */}
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                <select
+                  className="form-select"
+                  value={row.rightType}
+                  onChange={e => updateRow(row.id, { rightType: e.target.value as 'value' | 'ref' })}
+                  style={{ width: 56, fontSize: '0.7rem', padding: '2px 4px' }}
+                >
+                  <option value="value">val</option>
+                  <option value="ref">ref</option>
+                </select>
+
+                {row.rightType === 'value' ? (
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={row.rightVal}
+                    onChange={e => updateRow(row.id, { rightVal: e.target.value })}
+                    placeholder="e.g. 30, 70"
+                    style={{ width: 80, fontSize: '0.75rem', padding: '2px 4px' }}
+                  />
+                ) : (
+                  <select
+                    className="form-select"
+                    value={row.rightVal}
+                    onChange={e => updateRow(row.id, { rightVal: e.target.value })}
+                    style={{ minWidth: 100, fontSize: '0.75rem', padding: '2px 4px' }}
+                  >
+                    <option value="">— select —</option>
+                    {availableRefs.map(ref => (
+                      <option key={ref} value={ref}>{ref}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Remove row */}
+              <button
+                className="btn btn-sm"
+                onClick={() => removeRow(row.id)}
+                style={{ color: 'var(--rose)', fontSize: '0.75rem', padding: '2px 6px' }}
+                title="Remove condition"
+              >×</button>
+            </div>
+          </div>
+        ))}
+        <button className="btn btn-sm" onClick={addRow} style={{ marginTop: 6, fontSize: '0.75rem' }}>
+          + Add Condition
+        </button>
+      </div>
+    </div>
+  )
+}

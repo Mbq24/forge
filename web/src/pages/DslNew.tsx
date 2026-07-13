@@ -5,6 +5,7 @@ import {
   IndicatorType
 } from '../api'
 import Chart from '../components/Chart'
+import ConditionBuilder from '../components/ConditionBuilder'
 
 interface IndicatorEntry {
   id: string
@@ -114,6 +115,17 @@ export default function DslNew() {
     }
     return lines.join('\n')
   }, [name, description, timeframe, indicators, compounds, patterns, entryCond, exitCond])
+
+  // Available references for condition builder
+  const availableRefs = useMemo(() => {
+    const refs: string[] = []
+    indicators.forEach(i => refs.push(i.id))
+    compounds.forEach(c => refs.push(c.id))
+    patterns.forEach(p => refs.push(p))
+    refs.push('close', 'open', 'high', 'low', 'volume')
+    refs.push('session_asian', 'session_london', 'session_ny', 'session_london_ny_overlap', 'session_slow')
+    return refs
+  }, [indicators, compounds, patterns])
 
   // Selected indicator info
   const selectedType = allIndicators.find(i => i.type === addType)
@@ -353,21 +365,20 @@ export default function DslNew() {
           </div>
 
           {/* Signals */}
-          <div className="card">
-            <div className="card-header">Signal Conditions</div>
-            <div className="card-body">
-              <div style={{ marginBottom: '0.75rem' }}>
-                <label className="form-label" style={{ color: 'var(--emerald)' }}>Entry Condition</label>
-                <input className="form-input" value={entryCond} onChange={e => setEntryCond(e.target.value)}
-                  placeholder='rsi < 30 AND hammer' />
-              </div>
-              <div>
-                <label className="form-label" style={{ color: 'var(--rose)' }}>Exit Condition</label>
-                <input className="form-input" value={exitCond} onChange={e => setExitCond(e.target.value)}
-                  placeholder='rsi > 70 OR pull >= 3' />
-              </div>
-            </div>
-          </div>
+          <ConditionBuilder
+            label="Entry Condition"
+            labelColor="var(--emerald)"
+            availableRefs={availableRefs}
+            value={entryCond}
+            onChange={setEntryCond}
+          />
+          <ConditionBuilder
+            label="Exit Condition"
+            labelColor="var(--rose)"
+            availableRefs={availableRefs}
+            value={exitCond}
+            onChange={setExitCond}
+          />
 
           {/* Actions */}
           <div className="card">
