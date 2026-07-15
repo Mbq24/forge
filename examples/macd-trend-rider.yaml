@@ -1,0 +1,34 @@
+# MACD Trend Rider — MACD crossover with EMA trend filter
+#
+# Uses MACD line/signal crossovers but only takes trades in
+# the direction of the larger trend (200 EMA).
+
+name: "MACD Trend Rider"
+description: "MACD crossovers filtered by EMA trend direction"
+timeframe: "1h"
+
+indicators:
+  - id: ema_short
+    type: ema
+    params: { period: 20 }
+  - id: ema_long
+    type: ema
+    params: { period: 200 }
+  - id: macd
+    type: macd
+    params: { fast: 12, slow: 26, signal: 9 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+
+compounds:
+  - id: proximity
+    type: candle_proximity
+    params: { ema: ema_short }
+
+patterns:
+  - doji
+
+signals:
+  entry: "macd_line > macd_signal AND close > ema_long AND rsi > 50"
+  exit: "macd_line < macd_signal OR rsi < 40"

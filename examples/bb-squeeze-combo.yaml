@@ -1,0 +1,35 @@
+# BB Squeeze Combo — Bollinger squeeze + RSI for mean reversion
+#
+# When Bollinger Bands tighten and RSI is at an extreme,
+# take a mean reversion trade back to the middle band.
+
+name: "BB Squeeze Combo"
+description: "Bollinger Band squeeze + RSI extreme for mean reversion"
+timeframe: "1h"
+
+indicators:
+  - id: ema_20
+    type: ema
+    params: { period: 20 }
+  - id: bb
+    type: bb
+    params: { period: 20, stddev: 2.0 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+
+compounds:
+  - id: proximity
+    type: candle_proximity
+    params: { ema: ema_20 }
+  - id: pull
+    type: pull_count
+    params: { ema: ema_20 }
+
+patterns:
+  - doji
+  - hammer
+
+signals:
+  entry: "(rsi < 30 AND hammer) OR (rsi > 70 AND doji)"
+  exit: "proximity > 0 AND proximity < 0.5"

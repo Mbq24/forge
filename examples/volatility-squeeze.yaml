@@ -1,0 +1,41 @@
+# Volatility Squeeze — Bollinger compression + EMA alignment breakout
+#
+# Detects when Bollinger Bands tighten (squeeze) combined with
+# EMA bunching, then enters on the breakout direction confirmed
+# by the first candle outside the bands.
+
+name: "Volatility Squeeze"
+description: "BB squeeze + EMA spread — enter breakouts from compression"
+timeframe: "1h"
+
+indicators:
+  - id: ema_5
+    type: ema
+    params: { period: 5 }
+  - id: ema_8
+    type: ema
+    params: { period: 8 }
+  - id: ema_13
+    type: ema
+    params: { period: 13 }
+  - id: bb
+    type: bb
+    params: { period: 20, stddev: 2.0 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+
+compounds:
+  - id: alignment
+    type: ema_alignment
+    params: { emas: [ema_5, ema_8, ema_13] }
+  - id: spread
+    type: ema_spread
+    params: { emas: [ema_5, ema_8, ema_13] }
+
+patterns:
+  - doji
+
+signals:
+  entry: "spread < 0.003 AND alignment != 0 AND NOT doji"
+  exit: "spread > 0.01 OR rsi > 75"

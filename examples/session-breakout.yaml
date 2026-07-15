@@ -1,0 +1,38 @@
+# Session Breakout — Session-based breakouts with volume confirmation
+#
+# Trades the London and NY session opens. Looks for breakouts
+# above/below the Asian session range with volume confirmation.
+
+name: "Session Breakout"
+description: "London/NY session breakouts with volume confirmation"
+timeframe: "1h"
+
+indicators:
+  - id: ema_5
+    type: ema
+    params: { period: 5 }
+  - id: ema_13
+    type: ema
+    params: { period: 13 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+  - id: atr
+    type: atr
+    params: { period: 14 }
+
+compounds:
+  - id: alignment
+    type: ema_alignment
+    params: { emas: [ema_5, ema_13] }
+  - id: proximity
+    type: candle_proximity
+    params: { ema: ema_5 }
+
+patterns:
+  - hammer
+  - shooting_star
+
+signals:
+  entry: "session_london_ny_overlap AND alignment == 1 AND proximity > 1"
+  exit: "NOT session_london AND NOT session_ny OR rsi > 75"

@@ -1,0 +1,38 @@
+# Gold Hours — Gold market session strategy
+#
+# Gold (XAUUSD) trades 23h/day with distinct session behaviour.
+# London open (8 UTC) and NY open (13 UTC) see highest volume.
+# This strategy enters on EMA alignment during active sessions.
+
+name: "Gold Hours"
+description: "XAUUSD session-based trading during London/NY hours"
+timeframe: "1h"
+
+indicators:
+  - id: ema_5
+    type: ema
+    params: { period: 5 }
+  - id: ema_8
+    type: ema
+    params: { period: 8 }
+  - id: ema_13
+    type: ema
+    params: { period: 13 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+
+compounds:
+  - id: alignment
+    type: ema_alignment
+    params: { emas: [ema_5, ema_8, ema_13] }
+  - id: pull
+    type: pull_count
+    params: { ema: ema_5 }
+
+patterns:
+  - doji
+
+signals:
+  entry: "session_london_ny_overlap AND alignment != 0 AND NOT session_slow"
+  exit: "session_slow OR pull >= 3"
