@@ -23,6 +23,7 @@ export interface DslDetail {
   pine_code: string
   chart_html: string | null
   chart_data: any | null
+  backtest: any | null
   error: string | null
   stats: { entry_count: number; exit_count: number; total_bars: number; signal_density: number }
   entry_cond: string
@@ -45,13 +46,14 @@ export async function fetchDslList(): Promise<DslListItem[]> {
 
 export async function fetchDslDetail(
   name: string,
-  params: { ticker?: string; interval?: string; period?: string } = {}
+  params: { ticker?: string; interval?: string; period?: string; backtest?: string } = {}
 ): Promise<DslDetail> {
   const qs = new URLSearchParams({
     ticker: params.ticker || 'SYNTHETIC',
     interval: params.interval || '1h',
     period: params.period || '5d',
-  }).toString()
+  })
+  if (params.backtest) qs.set('backtest', params.backtest)
   const res = await fetch(`${BASE}/dsl/${encodeURIComponent(name)}?${qs}`)
   if (!res.ok) {
     const text = await res.text()

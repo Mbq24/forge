@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { fetchDslDetail, DslDetail as DslDetailType } from '../api'
 import Chart from '../components/Chart'
+import BacktestResults from '../components/BacktestResults'
 import PineScriptDisplay from '../components/PineScriptDisplay'
 
 const TICKER_GROUPS: Record<string, string[]> = {
@@ -21,6 +22,7 @@ export default function DslDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [tab, setTab] = useState<'chart' | 'backtest'>('chart')
 
   const ticker = searchParams.get('ticker') || 'SYNTHETIC'
   const interval = searchParams.get('interval') || '1h'
@@ -29,13 +31,15 @@ export default function DslDetail() {
   const load = () => {
     setLoading(true)
     setError('')
-    fetchDslDetail(name!, { ticker, interval, period })
+    const params: any = { ticker, interval, period }
+    if (tab === 'backtest') params.backtest = 'true'
+    fetchDslDetail(name!, params)
       .then(setData)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [name, ticker, interval, period])
+  useEffect(() => { load() }, [name, ticker, interval, period, tab])
 
   const updateParam = (key: string, val: string) => {
     const next = new URLSearchParams(searchParams)
@@ -99,7 +103,27 @@ export default function DslDetail() {
       {error && <div className="error">{error}</div>}
       {loading && <div className="loading">Computing indicators...</div>}
 
+      {/* Tab toggle */}
       {data && !loading && (
+        <div style={{ display: 'flex', gap: 4, marginBottom: '1rem' }}>
+          <button
+            className={`btn btn-sm ${tab === 'chart' ? 'btn-primary' : ''}`}
+            onClick={() => setTab('chart')}
+            style={{ fontSize: '0.75rem' }}
+          >
+            📊 Chart & Signals
+          </button>
+          <button
+            className={`btn btn-sm ${tab === 'backtest' ? 'btn-primary' : ''}`}
+            onClick={() => setTab('backtest')}
+            style={{ fontSize: '0.75rem' }}
+          >
+            📈 Backtest
+          </button>
+        </div>
+      )}
+
+      {data && !loading && tab === 'chart' && (
         <div className="grid grid-2" style={{ gridTemplateColumns: '1.5fr 1fr' }}>
           {/* Left column: Chart + Stats */}
           <div>
@@ -172,6 +196,10 @@ export default function DslDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {data && !loading && tab === 'backtest' && data.backtest && (
+        <BacktestResults data={data.backtest} />
       )}
     </div>
   )

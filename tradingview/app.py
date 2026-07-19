@@ -21,6 +21,7 @@ from dsl.schema import IndicatorDSL, SignalDef
 from dsl.indicators import INDICATOR_REGISTRY, PATTERN_MAP
 from generators.pinescript import generate_pinescript
 from generators.local import compute_indicators
+from generators.backtest import run_backtest
 from data_fetcher import fetch_ohlcv, list_tickers, format_data_preview
 
 load_dotenv()
@@ -631,6 +632,27 @@ def api_dsl_detail(name):
                 "legend": {"orientation": "h", "y": 1.1, "font": {"size": 9}},
             }
         }
+
+        # Backtest (if requested via ?backtest=true)
+        if request.args.get("backtest") == "true":
+            bt = run_backtest(result)
+            result_data["backtest"] = {
+                "total_trades": bt.total_trades,
+                "winning_trades": bt.winning_trades,
+                "losing_trades": bt.losing_trades,
+                "win_rate": bt.win_rate,
+                "total_return_pct": bt.total_return_pct,
+                "avg_return_pct": bt.avg_return_pct,
+                "max_drawdown_pct": bt.max_drawdown_pct,
+                "profit_factor": bt.profit_factor,
+                "sharpe_ratio": bt.sharpe_ratio,
+                "avg_bars_held": bt.avg_bars_held,
+                "trades": bt.trades,
+                "equity_curve": bt.equity_curve,
+                "error": bt.error,
+            }
+        else:
+            result_data["backtest"] = None
 
     except Exception as e:
         result_data["error"] = str(e)

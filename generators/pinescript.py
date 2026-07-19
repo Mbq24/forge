@@ -218,7 +218,8 @@ def _render_indicator(ind: IndicatorDef, var_name: str) -> str:
         k_var = _pine_var_name(f"{ind.id}_k")
         d_var = _pine_var_name(f"{ind.id}_d")
         return (
-            f"[{k_var}, {d_var}] = ta.stoch(close, high, low, {k_period})"
+            f"{k_var} = ta.stoch(close, high, low, {k_period})\n"
+            f"{d_var} = ta.sma({k_var}, {d_period})"
         )
     elif ind.type == "macd":
         fast = ind.params.get("fast", 12)
