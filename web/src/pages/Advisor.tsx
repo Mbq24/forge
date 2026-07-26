@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchAdvisorSuggestion, AdvisorSuggestion } from '../api'
 
-const TICKERS = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'AAPL', 'MSFT', 'NVDA', 'SPY', 'XAUUSD=X', 'EURUSD=X']
+const TICKERS = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'AAPL', 'MSFT', 'NVDA', 'SPY', 'XAUUSD=X', 'EURUSD=X', 'SPX']
 const INTERVALS = ['1h', '4h', '1d']
 const PERIODS = ['5d', '7d', '1mo']
 

@@ -1,1 +1,31 @@
+# Python
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+web/dist/
+
+# Environment
+.env
+.env.local
+.flaskenv
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
 .qodo
+.idea/
+.vscode/
+
+# Trading data (CSV training data, etc.)
+*.csv
