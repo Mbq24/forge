@@ -22,7 +22,9 @@ web/dist/
 .DS_Store
 Thumbs.db
 
-# Junk
+# Auto-generated advisor files
+examples/advisor-*.yaml
+examples/spx-advisor.yaml
 plan
 webhooks.txt
 tradingview/notes.txt
