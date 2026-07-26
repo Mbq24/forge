@@ -201,6 +201,11 @@ def to_pine_condition(node: Node) -> str:
         elif isinstance(n, Number):
             return str(n.value)
         elif isinstance(n, Compare):
+            # Patterns (hammer, doji, etc.) are already boolean — strip redundant > 0, != 0 comparisons
+            from dsl.indicators import PATTERN_MAP
+            if (isinstance(n.left, Identifier) and n.left.name in PATTERN_MAP
+                    and isinstance(n.right, Number) and n.right.value == 0):
+                return render(n.left)
             return f"{render(n.left)} {n.op} {render(n.right)}"
         elif isinstance(n, LogicOp):
             op_lower = n.op.lower()
