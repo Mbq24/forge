@@ -105,31 +105,43 @@ def generate_pinescript(dsl: IndicatorDSL) -> str:
     lines.append("")
     lines.append("// === PLOTS ===")
 
-    overlay_plots: List[PlotDef] = []
-    pane_plots: List[PlotDef] = []
-    for plot in dsl.plots:
-        info = _get_indicator_info_for_plot(plot, dsl)
-        if info and info.category in ("momentum",) and info.type_name not in ("macd",):
-            pane_plots.append(plot)
-        else:
-            overlay_plots.append(plot)
+    # Determine which indicators go in overlay vs separate pane
+    overlay_plots: List[str] = []  # var names for overlay
+    pane_plots: List[str] = []     # var names for separate pane
+
+    if dsl.plots:
+        # User-defined plots — use explicit PlotDefs
+        for plot in dsl.plots:
+            info = _get_indicator_info_for_plot(plot, dsl)
+            var_ref = _resolve_indicator_ref(plot.ref, dsl)
+            color = plot.color or _auto_color(len(lines), info.type_name if info else "")
+            if info and info.category in ("momentum",) and info.type_name not in ("macd",):
+                pane_plots.append(f"plot({var_ref}, \"{_pine_var_name(plot.ref)}\", {color})")
+            else:
+                overlay_plots.append(f"plot({var_ref}, \"{_pine_var_name(plot.ref)}\", {color})")
+    else:
+        # Auto-plot all standard indicators so lines show up on the chart
+        for ind in dsl.indicators:
+            info = INDICATOR_REGISTRY.get(ind.type)
+            if not info or info.vt_concept:
+                continue
+            var_name = _pine_var_name(ind.id)
+            color = _auto_color(0, ind.type)
+            if info.category in ("momentum",) and ind.type not in ("macd",):
+                pane_plots.append(f"plot({var_name}, \"{var_name}\", {color})")
+            else:
+                overlay_plots.append(f"plot({var_name}, \"{var_name}\", {color})")
 
     if overlay_plots:
-        lines.append("// Overlay plots")
-        for plot in overlay_plots:
-            var_ref = _resolve_indicator_ref(plot.ref, dsl)
-            color = plot.color or _auto_color(len(lines))
-            pin = _pine_var_name(plot.ref)
-            lines.append(f"plot({var_ref}, \"{pin}\", {color})")
+        lines.append("// Overlay plots (on price chart)")
+        for p in overlay_plots:
+            lines.append(p)
 
     if pane_plots:
         lines.append("")
         lines.append("// Separate-pane plots")
-        for plot in pane_plots:
-            var_ref = _resolve_indicator_ref(plot.ref, dsl)
-            color = plot.color or _auto_color(len(lines))
-            pin = _pine_var_name(plot.ref)
-            lines.append(f"plot({var_ref}, \"{pin}\", {color})")
+        for p in pane_plots:
+            lines.append(p)
 
     # ── Signals ──
     if dsl.signals:
@@ -308,8 +320,22 @@ def _get_indicator_info_for_plot(plot: PlotDef, dsl: IndicatorDSL) -> IndicatorI
     return None
 
 
-def _auto_color(index: int) -> str:
-    """Assign a color from a rotating palette."""
+def _auto_color(index: int, indicator_type: str = "") -> str:
+    """Assign a color from a rotating palette, with some type-based defaults."""
+    type_colors = {
+        "ema": "color.blue",
+        "sma": "color.orange",
+        "rsi": "color.purple",
+        "atr": "color.teal",
+        "bb": "color.navy",
+        "macd": "color.green",
+        "stochastic": "color.fuchsia",
+        "volume": "color.lime",
+        "vwap": "color.maroon",
+        "cci": "color.orange",
+    }
+    if indicator_type in type_colors:
+        return type_colors[indicator_type]
     colors = [
         "color.blue", "color.red", "color.green", "color.orange",
         "color.purple", "color.teal", "color.maroon", "color.navy",
