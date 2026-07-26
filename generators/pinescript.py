@@ -335,22 +335,25 @@ def _auto_color(index: int, indicator_type: str = "", period: int = 0) -> str:
         "vwap": "color.maroon",
         "cci": "color.orange",
     }
-    # For EMAs, vary shade by period so ema_5, ema_8, ema_13 are distinct
-    if indicator_type == "ema" and period:
-        ema_colors = {
-            5: "color.blue",
-            8: "color.orange",
-            13: "color.green",
-            20: "color.red",
-            21: "color.red",
-            50: "color.purple",
-            200: "color.maroon",
-        }
-        if period in ema_colors:
-            return ema_colors[period]
-        # Fallback: spread across the palette
-        palette = ["color.blue", "color.orange", "color.green", "color.red", "color.purple", "color.teal"]
-        return palette[period % len(palette)]
+
+    # If the indicator has a period, spread colors across the palette
+    # so that sma_5, sma_10, sma_20, rsi_14, rsi_7 all get distinct hues
+    if period:
+        palette = [
+            "color.blue", "color.orange", "color.green", "color.red",
+            "color.purple", "color.teal", "color.maroon", "color.navy",
+            "color.fuchsia", "color.lime",
+        ]
+        # Known EMA periods get stable, semantic colors
+        if indicator_type == "ema":
+            ema_known = {5: 0, 8: 1, 13: 2, 20: 3, 21: 3, 50: 4, 200: 7}
+            idx = ema_known.get(period, period % len(palette))
+        else:
+            # Spread periods across palette using golden ratio to avoid
+            # collisions (10 and 20 don't both land on the same color)
+            idx = int((period * 0.618) % 1.0 * len(palette)) % len(palette)
+        return palette[idx]
+
     if indicator_type in type_colors:
         return type_colors[indicator_type]
     colors = [
