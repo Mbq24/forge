@@ -197,10 +197,6 @@ def to_pine_condition(node: Node) -> str:
     """Render a condition AST as a Pine Script v5 boolean expression."""
     def render(n: Node) -> str:
         if isinstance(n, Identifier):
-            # Map pattern names to their Pine function calls
-            from dsl.indicators import PATTERN_MAP
-            if n.name in PATTERN_MAP:
-                return PATTERN_MAP[n.name]
             return n.name
         elif isinstance(n, Number):
             return str(n.value)
