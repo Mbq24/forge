@@ -126,7 +126,8 @@ def generate_pinescript(dsl: IndicatorDSL) -> str:
             if not info or info.vt_concept:
                 continue
             var_name = _pine_var_name(ind.id)
-            color = _auto_color(0, ind.type)
+            period = ind.params.get("period", 0)
+            color = _auto_color(0, ind.type, period)
             if info.category in ("momentum",) and ind.type not in ("macd",):
                 pane_plots.append(f"plot({var_name}, \"{var_name}\", {color})")
             else:
@@ -320,7 +321,7 @@ def _get_indicator_info_for_plot(plot: PlotDef, dsl: IndicatorDSL) -> IndicatorI
     return None
 
 
-def _auto_color(index: int, indicator_type: str = "") -> str:
+def _auto_color(index: int, indicator_type: str = "", period: int = 0) -> str:
     """Assign a color from a rotating palette, with some type-based defaults."""
     type_colors = {
         "ema": "color.blue",
@@ -334,6 +335,22 @@ def _auto_color(index: int, indicator_type: str = "") -> str:
         "vwap": "color.maroon",
         "cci": "color.orange",
     }
+    # For EMAs, vary shade by period so ema_5, ema_8, ema_13 are distinct
+    if indicator_type == "ema" and period:
+        ema_colors = {
+            5: "color.blue",
+            8: "color.orange",
+            13: "color.green",
+            20: "color.red",
+            21: "color.red",
+            50: "color.purple",
+            200: "color.maroon",
+        }
+        if period in ema_colors:
+            return ema_colors[period]
+        # Fallback: spread across the palette
+        palette = ["color.blue", "color.orange", "color.green", "color.red", "color.purple", "color.teal"]
+        return palette[period % len(palette)]
     if indicator_type in type_colors:
         return type_colors[indicator_type]
     colors = [
