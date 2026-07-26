@@ -79,12 +79,43 @@ The Vite dev server proxies `/api/*` calls to Flask on port 5000, so everything 
 2. Frontend terminal shows Vite running on port 3000
 3. Open http://localhost:3000 — you should see the Forge dashboard
 
-## Deploy
+## Push changes & Deploy
+
+### 1. Commit and push to GitHub
 
 ```sh
+cd "/Users/mark/Library/Mobile Documents/com~apple~CloudDocs/VisualStudioProjects/Forge"
+
+# Stage your changes
+git add -A
+
+# Commit with a descriptive message
+git commit -m "What you changed — be specific"
+
+# Push to GitHub
+git push
+```
+
+Check it at https://github.com/Mbq24/forge
+
+### 2. Deploy to Railway
+
+```sh
+cd "/Users/mark/Library/Mobile Documents/com~apple~CloudDocs/VisualStudioProjects/Forge"
+
+# Build the React frontend for production
 cd web && npm run build && cd ..
+
+# Deploy to Railway
 railway up
 ```
+
+That's it. Railway reads the `Dockerfile` at the project root, which:
+1. Builds the React app in a Node container
+2. Copies the Python app into a slim container
+3. Serves everything via gunicorn on port 8080
+
+The app will be live at https://forge-production-0c60.up.railway.app (or whatever URL Railway assigns).
 
 ## Changelog
 
