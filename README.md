@@ -126,6 +126,8 @@ The app will be live at https://forge-production-0c60.up.railway.app (or whateve
 | — | React SPA frontend with DSL builder, advisor, templates, backtesting. |
 | — | Railway deployment. Fixed stochastic generator (tuple destructure → explicit k/d). |
 | Jul 24 | Cleaned up git tracking: removed `node_modules/`, `__pycache__/`, `.db` files from version control. Updated `.gitignore`. Added SPX to Advisor ticker list. |
+| Jul 24 | Fixed Pine generation: pattern names now use variable references instead of inlining expressions. Stripped redundant `> 0` comparisons on boolean patterns (hammer, doji). |
+| Jul 24 | Auto-plot standard indicators (EMA, RSI, ATR) in generated Pine Script with type-based coloring.
 
 > *Add your changes below this line as you make them.*
 
