@@ -22,6 +22,12 @@ web/dist/
 .DS_Store
 Thumbs.db
 
+# Junk
+plan
+webhooks.txt
+tradingview/notes.txt
+tradingview/README.txt
+
 # IDE
 .qodo
 .idea/
