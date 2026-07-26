@@ -14,24 +14,70 @@ examples/       Pre-built indicator templates (8 strategies)
 
 ## Local Development
 
-### Backend (Flask)
+You need **two terminals** — one for the backend, one for the frontend.
+
+### Prerequisites
+
+- Python 3.10+ (`python3 --version`)
+- Node 20+ (`node --version`)
+
+### 1. Backend (Flask API)
 
 ```sh
+# From the project root
+cd "/Users/mark/Library/Mobile Documents/com~apple~CloudDocs/VisualStudioProjects/Forge"
+
+# One-time setup (skip if already done)
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cd tradingview && flask run --port 5000
+
+# Start the server (cd into tradingview/ so Flask finds app.py + .flaskenv)
+cd tradingview
+flask run --port 5000
 ```
 
-### Frontend (React)
+You should see:
+```
+ * Serving Flask app 'app'
+ * Debug mode: on
+ * Running on http://127.0.0.1:5000
+```
 
-*Separate terminal:*
+> **Note:** The `.flaskenv` file in `tradingview/` sets `FLASK_APP=app` and `FLASK_DEBUG=1` automatically. That's why you need to `cd tradingview` before running `flask run`.
+
+### 2. Frontend (React SPA)
+
+*Open a **second terminal** and run:*
 
 ```sh
-cd web
+cd "/Users/mark/Library/Mobile Documents/com~apple~CloudDocs/VisualStudioProjects/Forge/web"
+
+# One-time setup (skip if already done)
 npm install
-npm run dev       # starts on port 3000, proxies /api → localhost:5000
+
+# Start dev server
+npm run dev
 ```
+
+You should see:
+```
+  VITE v4.x  ready in XXXms
+  ➜  Local:   http://localhost:3000/
+```
+
+### 3. Open the app
+
+- **UI:** http://localhost:3000
+- **API (direct):** http://localhost:5000
+
+The Vite dev server proxies `/api/*` calls to Flask on port 5000, so everything works together.
+
+### 4. Verify it works
+
+1. Backend terminal shows Flask running on port 5000
+2. Frontend terminal shows Vite running on port 3000
+3. Open http://localhost:3000 — you should see the Forge dashboard
 
 ## Deploy
 
