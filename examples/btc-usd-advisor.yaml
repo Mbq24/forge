@@ -1,0 +1,45 @@
+name: BTC-USD Advisor
+description: "LLM-suggested indicator for BTC-USD (1h) \u2014 \U0001F30A Ranging market\
+  \ (RSI \u2248 50)"
+timeframe: 1h
+indicators:
+- id: ema_5
+  type: ema
+  params:
+    period: 5
+- id: ema_8
+  type: ema
+  params:
+    period: 8
+- id: ema_20
+  type: ema
+  params: {}
+compounds:
+- id: alignment
+  type: ema_alignment
+  params:
+    emas:
+    - ema_5
+    - ema_8
+    - ema_13
+- id: spread
+  type: ema_spread
+  params:
+    emas:
+    - ema_5
+    - ema_8
+    - ema_13
+- id: pull
+  type: pull_count
+  params:
+    ema: ema_5
+- id: proximity
+  type: candle_proximity
+  params:
+    ema: ema_5
+patterns:
+- doji
+- hammer
+signals:
+  entry: CROSSOVER(ema_5, ema_20)
+  exit: pull > 30

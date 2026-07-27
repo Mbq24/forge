@@ -369,6 +369,7 @@ export default function DslNew() {
             label="Entry Condition"
             labelColor="var(--emerald)"
             availableRefs={availableRefs}
+            booleanRefs={[...patterns, 'session_asian', 'session_london', 'session_ny', 'session_london_ny_overlap', 'session_slow']}
             value={entryCond}
             onChange={setEntryCond}
           />
@@ -376,6 +377,7 @@ export default function DslNew() {
             label="Exit Condition"
             labelColor="var(--rose)"
             availableRefs={availableRefs}
+            booleanRefs={[...patterns, 'session_asian', 'session_london', 'session_ny', 'session_london_ny_overlap', 'session_slow']}
             value={exitCond}
             onChange={setExitCond}
           />

@@ -14,6 +14,7 @@ interface Props {
   label: string
   labelColor: string
   availableRefs: string[]
+  booleanRefs?: string[]    // refs that are already boolean (patterns, sessions)
   value: string          // current condition string
   onChange: (val: string) => void
 }
@@ -29,7 +30,7 @@ const newRow = (): CondRow => ({
 })
 
 // Parse a condition string like "rsi < 30 AND hammer" or "CROSSOVER(ema_8, ema_5)" into rows
-function parseToRows(expr: string, availableRefs: string[]): CondRow[] {
+function parseToRows(expr: string, availableRefs: string[], booleanRefs: string[] = []): CondRow[] {
   if (!expr.trim()) return [newRow()]
   const rows: CondRow[] = []
   // Split on AND/OR (case-insensitive, with word boundaries)
@@ -72,8 +73,12 @@ function parseToRows(expr: string, availableRefs: string[]): CondRow[] {
         logic: 'AND',
       })
     } else {
-      // Just a bare identifier (like "hammer" or "doji")
-      rows.push({ id: `r${++rowCounter}`, left: part, op: '>', rightType: 'value', rightVal: '0', crossRight: '', logic: 'AND' })
+      // Just a bare identifier — boolean refs stay bare, others get > 0
+      if (booleanRefs.includes(part)) {
+        rows.push({ id: `r${++rowCounter}`, left: part, op: '', rightType: 'value', rightVal: '', crossRight: '', logic: 'AND' })
+      } else {
+        rows.push({ id: `r${++rowCounter}`, left: part, op: '>', rightType: 'value', rightVal: '0', crossRight: '', logic: 'AND' })
+      }
     }
   }
   if (rows.length === 0) rows.push(newRow())
@@ -81,11 +86,16 @@ function parseToRows(expr: string, availableRefs: string[]): CondRow[] {
 }
 
 // Serialize rows back to a condition string
-function rowsToString(rows: CondRow[]): string {
+function rowsToString(rows: CondRow[], booleanRefs: string[] = []): string {
   const nonEmpty = rows.filter(r => r.left.trim() !== '')
   return nonEmpty
     .map((r, i) => {
       const left = r.left
+      // Boolean refs (patterns, sessions) — just the name
+      if (booleanRefs.includes(left)) {
+        const logic = i > 0 ? ` ${nonEmpty[i - 1].logic} ` : ''
+        return `${logic}${left}`
+      }
       // Crossover/crossunder rows
       if (r.op === 'XOVER' || r.op === 'XUNDER') {
         const fn = r.op === 'XOVER' ? 'CROSSOVER' : 'CROSSUNDER'
@@ -103,24 +113,24 @@ function rowsToString(rows: CondRow[]): string {
     .replace(/^AND |^OR /, '')
 }
 
-export default function ConditionBuilder({ label, labelColor, availableRefs, value, onChange }: Props) {
-  const [rows, setRows] = useState<CondRow[]>(() => parseToRows(value, availableRefs))
+export default function ConditionBuilder({ label, labelColor, availableRefs, booleanRefs = [], value, onChange }: Props) {
+  const [rows, setRows] = useState<CondRow[]>(() => parseToRows(value, availableRefs, booleanRefs))
 
   useEffect(() => {
-    setRows(parseToRows(value, availableRefs))
-  }, [value, availableRefs])
+    setRows(parseToRows(value, availableRefs, booleanRefs))
+  }, [value, availableRefs, booleanRefs])
 
   const updateRow = (id: string, patch: Partial<CondRow>) => {
     const next = rows.map(r => r.id === id ? { ...r, ...patch } : r)
     setRows(next)
-    onChange(rowsToString(next))
+    onChange(rowsToString(next, booleanRefs))
   }
 
   const removeRow = (id: string) => {
     const next = rows.filter(r => r.id !== id)
     if (next.length === 0) next.push(newRow())
     setRows(next)
-    onChange(rowsToString(next))
+    onChange(rowsToString(next, booleanRefs))
   }
 
   const addRow = () => {
@@ -162,6 +172,13 @@ export default function ConditionBuilder({ label, labelColor, availableRefs, val
                 ))}
               </select>
 
+              {/* Boolean refs (patterns, sessions) — no comparison needed */}
+              {booleanRefs.includes(row.left) ? (
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', padding: '0 4px' }}>
+                  = true
+                </span>
+              ) : (
+                <>
               {/* Operator (includes XOVER/XUNDER for cross detection) */}
               <select
                 className="form-select"
@@ -228,6 +245,8 @@ export default function ConditionBuilder({ label, labelColor, availableRefs, val
                     </select>
                   )}
                 </div>
+              )}
+              </>
               )}
 
               {/* Remove row */}
