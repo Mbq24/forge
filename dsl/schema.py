@@ -273,10 +273,13 @@ class IndicatorDSL:
         }
         for name, sig in self.signals.items():
             # Check that referenced names exist
-            tokens = sig.condition.replace("(", " ").replace(")", " ").split()
+            tokens = sig.condition.replace("(", " ").replace(")", " ").replace(",", " ").split()
             refs = {
                 t for t in tokens
-                if t.upper() not in ("AND", "OR", "NOT", "TRUE", "FALSE")
+                if t.upper() not in (
+                    "AND", "OR", "NOT", "TRUE", "FALSE",
+                    "CROSSOVER", "CROSSUNDER",
+                )
                 and not t.lstrip("-").replace(".", "").isdigit()
                 and t not in (">", "<", ">=", "<=", "==", "!=", "+", "-", "*", "/")
             }
