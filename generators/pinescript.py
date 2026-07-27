@@ -103,67 +103,53 @@ def generate_pinescript(dsl: IndicatorDSL) -> str:
 
     # ── Auto-generate VT concepts referenced in signals but not in compounds ──
     existing_compound_ids = {comp.id for comp in dsl.compounds}
-    concept_deps = {
-        "alignment": {"type": "ema_alignment", "emas": ["ema_5", "ema_8", "ema_13"]},
-        "spread":    {"type": "ema_spread",    "emas": ["ema_5", "ema_8", "ema_13"]},
-        "pull":      {"type": "pull_count",    "ema": "ema_5"},
-        "proximity": {"type": "candle_proximity", "ema": "ema_5"},
-    }
-    # Find which EMAs are available
-    ema_ids = [ind.id for ind in dsl.indicators if ind.type == "ema"]
+    # Find available EMAs sorted by period (shortest first)
+    ema_ids = sorted(
+        [ind for ind in dsl.indicators if ind.type == "ema"],
+        key=lambda i: i.params.get("period", 999)
+    )
+    ema_names = [e.id for e in ema_ids]
     auto_generated = False
+
+    def _ensure_concept_section():
+        nonlocal auto_generated
+        if not auto_generated:
+            if dsl.compounds:
+                lines.append("")
+            else:
+                lines.append("")
+                lines.append("// === VT CONCEPTS (derived indicators) ===")
+            auto_generated = True
+
     for ref_name in all_refs:
         if ref_name in existing_compound_ids:
             continue  # already explicitly defined
-        if ref_name == "alignment" or ref_name == "spread":
-            deps = concept_deps[ref_name]
-            if all(dep in ema_ids for dep in deps["emas"]):
-                if not auto_generated:
-                    if dsl.compounds:
-                        lines.append("")
-                    else:
-                        lines.append("")
-                        lines.append("// === VT CONCEPTS (derived indicators) ===")
-                    auto_generated = True
-                comp = CompoundIndicator(id=ref_name, type=deps["type"], params={"emas": deps["emas"]})
-                var_name = _pine_var_name(ref_name)
-                ind_vars[ref_name] = var_name
-                code_lines = _render_compound(comp, ind_vars, dsl)
-                lines.append(f"// auto-generated from signal reference")
-                lines.extend(code_lines)
-        elif ref_name == "pull":
-            deps = concept_deps["pull"]
-            # Use first available EMA, default to ema_5
-            target_ema = deps["ema"] if deps["ema"] in ema_ids else (ema_ids[0] if ema_ids else "close")
-            if not auto_generated:
-                if dsl.compounds:
-                    lines.append("")
-                else:
-                    lines.append("")
-                    lines.append("// === VT CONCEPTS (derived indicators) ===")
-                auto_generated = True
-            comp = CompoundIndicator(id="pull", type="pull_count", params={"ema": target_ema})
-            var_name = _pine_var_name("pull")
-            ind_vars["pull"] = var_name
-            code_lines = _render_compound(comp, ind_vars, dsl)
-            lines.append(f"// auto-generated from signal reference")
-            lines.extend(code_lines)
-        elif ref_name == "proximity":
-            deps = concept_deps["proximity"]
-            target_ema = deps["ema"] if deps["ema"] in ema_ids else (ema_ids[0] if ema_ids else "close")
-            if not auto_generated:
-                if dsl.compounds:
-                    lines.append("")
-                else:
-                    lines.append("")
-                    lines.append("// === VT CONCEPTS (derived indicators) ===")
-                auto_generated = True
-            comp = CompoundIndicator(id="proximity", type="candle_proximity", params={"ema": target_ema})
-            var_name = _pine_var_name("proximity")
-            ind_vars["proximity"] = var_name
-            code_lines = _render_compound(comp, ind_vars, dsl)
-            lines.append(f"// auto-generated from signal reference")
-            lines.extend(code_lines)
+
+        if ref_name in ("alignment", "spread") and len(ema_names) >= 2:
+            # Use whatever EMAs are available (shortest 3, or 2 if that's all)
+            used_emas = ema_names[:3]
+            _ensure_concept_section()
+            comp = CompoundIndicator(
+                id=ref_name, type=f"ema_{ref_name}",
+                params={"emas": used_emas}
+            )
+            var_name = _pine_var_name(ref_name)
+            ind_vars[ref_name] = var_name
+            lines.append(f"// auto-generated from signal reference ({', '.join(used_emas)})")
+            lines.extend(_render_compound(comp, ind_vars, dsl))
+
+        elif ref_name in ("pull", "proximity") and ema_names:
+            # Use shortest-period EMA
+            target_ema = ema_names[0]
+            _ensure_concept_section()
+            comp = CompoundIndicator(
+                id=ref_name, type="pull_count" if ref_name == "pull" else "candle_proximity",
+                params={"ema": target_ema}
+            )
+            var_name = _pine_var_name(ref_name)
+            ind_vars[ref_name] = var_name
+            lines.append(f"// auto-generated from signal reference ({target_ema})")
+            lines.extend(_render_compound(comp, ind_vars, dsl))
 
     # ── Plots ──
     lines.append("")
