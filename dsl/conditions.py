@@ -234,10 +234,14 @@ def to_pine_condition(node: Node) -> str:
         elif isinstance(n, Number):
             return str(n.value)
         elif isinstance(n, Compare):
-            # Patterns (hammer, doji, etc.) are already boolean — strip redundant > 0, != 0 comparisons
+            # Patterns (hammer, doji, etc.) and sessions are already boolean
+            # — strip redundant > 0, != 0 comparisons
             from dsl.indicators import PATTERN_MAP
-            if (isinstance(n.left, Identifier) and n.left.name in PATTERN_MAP
-                    and isinstance(n.right, Number) and n.right.value == 0):
+            session_refs = {"session_asian", "session_london", "session_ny",
+                            "session_london_ny_overlap", "session_slow"}
+            if (isinstance(n.left, Identifier)
+                    and isinstance(n.right, Number) and n.right.value == 0
+                    and (n.left.name in PATTERN_MAP or n.left.name in session_refs)):
                 return render(n.left)
             return f"{render(n.left)} {n.op} {render(n.right)}"
         elif isinstance(n, LogicOp):
