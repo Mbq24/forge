@@ -131,3 +131,8 @@ The app will be live at https://forge-production-0c60.up.railway.app (or whateve
 
 > *Add your changes below this line as you make them.*
 
+## Extending
+
+See [docs/adding-conditions.md](docs/adding-conditions.md) for a step-by-step
+guide on adding new condition functions like `CROSSOVER(a, b)` to the DSL.
+

@@ -10,6 +10,8 @@ Grammar (simple recursive descent):
   term        → NOT term | comparison
   comparison  → value ((">" | "<" | ">=" | "<=" | "==" | "!=") value)?
   value       → IDENTIFIER | NUMBER | "(" expr ")"
+              | CROSSOVER "(" expr "," expr ")"
+              | CROSSUNDER "(" expr "," expr ")"
 
 Identifiers can be:
   - indicator/compound ids (ema_fast, alignment)
