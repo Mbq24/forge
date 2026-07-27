@@ -116,8 +116,7 @@ function rowsToString(rows: CondRow[], booleanRefs: string[] = []): string {
 export default function ConditionBuilder({ label, labelColor, availableRefs, booleanRefs = [], value, onChange }: Props) {
   const [rows, setRows] = useState<CondRow[]>(() => parseToRows(value, availableRefs, booleanRefs))
 
-  // Re-sync from external value only when availableRefs change (indicator added/removed)
-  // Don't re-sync on value changes — that's our own output and would kill input focus
+  // Re-sync only when availableRefs changes (indicator added/removed)
   useEffect(() => {
     setRows(parseToRows(value, availableRefs, booleanRefs))
   }, [availableRefs, booleanRefs])

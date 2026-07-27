@@ -127,6 +127,13 @@ export default function DslNew() {
     return refs
   }, [indicators, compounds, patterns])
 
+  // Boolean refs (stable reference to prevent useEffect re-fires in ConditionBuilder)
+  const booleanRefs = useMemo(() => [
+    ...patterns,
+    'session_asian', 'session_london', 'session_ny',
+    'session_london_ny_overlap', 'session_slow',
+  ], [patterns])
+
   // Selected indicator info
   const selectedType = allIndicators.find(i => i.type === addType)
   const selectedCompound = allIndicators.find(i => i.type === addCompoundType)
@@ -369,7 +376,7 @@ export default function DslNew() {
             label="Entry Condition"
             labelColor="var(--emerald)"
             availableRefs={availableRefs}
-            booleanRefs={[...patterns, 'session_asian', 'session_london', 'session_ny', 'session_london_ny_overlap', 'session_slow']}
+            booleanRefs={booleanRefs}
             value={entryCond}
             onChange={setEntryCond}
           />
@@ -377,7 +384,7 @@ export default function DslNew() {
             label="Exit Condition"
             labelColor="var(--rose)"
             availableRefs={availableRefs}
-            booleanRefs={[...patterns, 'session_asian', 'session_london', 'session_ny', 'session_london_ny_overlap', 'session_slow']}
+            booleanRefs={booleanRefs}
             value={exitCond}
             onChange={setExitCond}
           />
