@@ -247,6 +247,23 @@ class IndicatorDSL:
         for d in duplicates:
             errors.append(f"duplicate id: {d}")
 
+        # Validate compound params reference existing indicators
+        ind_ids = {i.id for i in self.indicators}
+        for comp in self.compounds:
+            if comp.type in ("ema_alignment", "ema_spread"):
+                emas = comp.params.get("emas", [])
+                missing = [e for e in emas if e not in ind_ids]
+                if missing:
+                    errors.append(
+                        f"compound '{comp.id}' references undefined EMAs: {missing}"
+                    )
+            elif comp.type in ("pull_count", "candle_proximity"):
+                ema = comp.params.get("ema", "")
+                if ema and ema not in ind_ids:
+                    errors.append(
+                        f"compound '{comp.id}' references undefined EMA: '{ema}'"
+                    )
+
         # Validate all references in plots — including multi-output subrefs
         valid_refs = set(all_ids) | {"open", "high", "low", "close", "volume"}
         # Add known sub-references from multi-output indicators

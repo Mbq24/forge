@@ -318,6 +318,11 @@ def _render_compound(comp: CompoundIndicator, ind_vars: Dict[str, str],
         ema_ids = comp.params.get("emas", [])
         if len(ema_ids) < 2:
             return [f"// ema_alignment requires at least 2 EMAs, got {len(ema_ids)}"]
+        # Check all referenced EMAs exist as indicators
+        ind_ids = {i.id for i in dsl.indicators}
+        missing = [e for e in ema_ids if e not in ind_ids]
+        if missing:
+            return [f"// SKIPPED {comp.id}: referenced EMAs not defined: {missing}"]
         ema_vars = [_resolve_indicator_ref(eid, dsl) for eid in ema_ids]
         # Build pairwise comparison chain
         pairs = " and ".join(
@@ -337,6 +342,10 @@ def _render_compound(comp: CompoundIndicator, ind_vars: Dict[str, str],
         ema_ids = comp.params.get("emas", [])
         if len(ema_ids) < 2:
             return [f"// ema_spread requires at least 2 EMAs, got {len(ema_ids)}"]
+        ind_ids = {i.id for i in dsl.indicators}
+        missing = [e for e in ema_ids if e not in ind_ids]
+        if missing:
+            return [f"// SKIPPED {comp.id}: referenced EMAs not defined: {missing}"]
         ema_vars = [_resolve_indicator_ref(eid, dsl) for eid in ema_ids]
         max_expr = f"math.max({', '.join(ema_vars)})"
         min_expr = f"math.min({', '.join(ema_vars)})"
@@ -345,12 +354,18 @@ def _render_compound(comp: CompoundIndicator, ind_vars: Dict[str, str],
 
     elif comp.type == "candle_proximity":
         ema_id = comp.params.get("ema", "")
+        ind_ids = {i.id for i in dsl.indicators}
+        if ema_id and ema_id not in ind_ids:
+            return [f"// SKIPPED {comp.id}: referenced EMA '{ema_id}' not defined"]
         ema_var = _resolve_indicator_ref(ema_id, dsl)
         lines.append(f"// {comp.id}: Candle proximity to {ema_id}")
         lines.append(f"{var_name} = (close - {ema_var}) / ta.atr(14)")
 
     elif comp.type == "pull_count":
         ema_id = comp.params.get("ema", "ema_5")
+        ind_ids = {i.id for i in dsl.indicators}
+        if ema_id and ema_id not in ind_ids:
+            return [f"// SKIPPED {comp.id}: referenced EMA '{ema_id}' not defined"]
         ema_var = _resolve_indicator_ref(ema_id, dsl)
         lines.append(f"// {comp.id}: Green candle pull count from {ema_id}")
         # Stateful counter in Pine: count consecutive closes above EMA
