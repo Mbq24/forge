@@ -9,7 +9,7 @@ const TICKER_GROUPS: Record<string, string[]> = {
   synthetic: ['SYNTHETIC'],
   crypto: ['BTC-USD', 'ETH-USD', 'SOL-USD', 'XRP-USD'],
   forex: ['EURUSD=X', 'GBPUSD=X', 'XAUUSD=X'],
-  stocks: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'SPY', 'SPX'],
+  stocks: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'SPY', 'SPX', 'SPCX'],
 }
 
 const INTERVALS = ['15m', '30m', '1h', '4h', '1d']

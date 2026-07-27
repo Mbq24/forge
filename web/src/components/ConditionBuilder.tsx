@@ -6,6 +6,7 @@ export interface CondRow {
   op: string
   rightType: 'value' | 'ref'
   rightVal: string
+  crossRight: string   // second argument for XOVER/XUNDER
   logic: 'AND' | 'OR'
 }
 
@@ -18,11 +19,16 @@ interface Props {
 }
 
 const OPERATORS = ['>', '<', '>=', '<=', '==', '!=']
+const CROSS_TYPES = ['XOVER', 'XUNDER']
 
 let rowCounter = 0
-const newRow = (): CondRow => ({ id: `r${++rowCounter}`, left: '', op: '>', rightType: 'value', rightVal: '', logic: 'AND' })
+const newRow = (): CondRow => ({
+  id: `r${++rowCounter}`, left: '', op: '>',
+  rightType: 'value', rightVal: '', crossRight: '',
+  logic: 'AND'
+})
 
-// Parse a condition string like "rsi < 30 AND hammer" into rows
+// Parse a condition string like "rsi < 30 AND hammer" or "CROSSOVER(ema_8, ema_5)" into rows
 function parseToRows(expr: string, availableRefs: string[]): CondRow[] {
   if (!expr.trim()) return [newRow()]
   const rows: CondRow[] = []
@@ -33,6 +39,21 @@ function parseToRows(expr: string, availableRefs: string[]): CondRow[] {
     if (!part) continue
     if (part.toUpperCase() === 'AND' || part.toUpperCase() === 'OR') {
       if (rows.length > 0) rows[rows.length - 1].logic = part.toUpperCase() as 'AND' | 'OR'
+      continue
+    }
+    // Try to parse crossover: CROSSOVER(a, b) or crossunder: CROSSUNDER(a, b)
+    const crossMatch = part.match(/^(CROSSOVER|CROSSUNDER)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)$/i)
+    if (crossMatch) {
+      const [, crossType, left, right] = crossMatch
+      rows.push({
+        id: `r${++rowCounter}`,
+        left: left.trim(),
+        op: crossType === 'CROSSOVER' ? 'XOVER' : 'XUNDER',
+        rightType: 'ref',
+        rightVal: '',
+        crossRight: right.trim(),
+        logic: 'AND',
+      })
       continue
     }
     // Try to parse "left op right"
@@ -47,11 +68,12 @@ function parseToRows(expr: string, availableRefs: string[]): CondRow[] {
         op,
         rightType: isRef ? 'ref' : 'value',
         rightVal: right,
+        crossRight: '',
         logic: 'AND',
       })
     } else {
       // Just a bare identifier (like "hammer" or "doji")
-      rows.push({ id: `r${++rowCounter}`, left: part, op: '>', rightType: 'value', rightVal: '0', logic: 'AND' })
+      rows.push({ id: `r${++rowCounter}`, left: part, op: '>', rightType: 'value', rightVal: '0', crossRight: '', logic: 'AND' })
     }
   }
   if (rows.length === 0) rows.push(newRow())
@@ -64,6 +86,14 @@ function rowsToString(rows: CondRow[]): string {
   return nonEmpty
     .map((r, i) => {
       const left = r.left
+      // Crossover/crossunder rows
+      if (r.op === 'XOVER' || r.op === 'XUNDER') {
+        const fn = r.op === 'XOVER' ? 'CROSSOVER' : 'CROSSUNDER'
+        const clause = `${fn}(${left}, ${r.crossRight || 'close'})`
+        const logic = i > 0 ? ` ${nonEmpty[i - 1].logic} ` : ''
+        return `${logic}${clause}`
+      }
+      // Regular comparison rows
       const right = r.rightType === 'ref' ? r.rightVal : r.rightVal
       const clause = right ? `${left} ${r.op} ${right}` : left
       const logic = i > 0 ? ` ${nonEmpty[i - 1].logic} ` : ''
@@ -132,53 +162,73 @@ export default function ConditionBuilder({ label, labelColor, availableRefs, val
                 ))}
               </select>
 
-              {/* Operator */}
+              {/* Operator (includes XOVER/XUNDER for cross detection) */}
               <select
                 className="form-select"
                 value={row.op}
                 onChange={e => updateRow(row.id, { op: e.target.value })}
-                style={{ width: 64, fontSize: '0.75rem', padding: '2px 4px' }}
+                style={{ width: 76, fontSize: '0.75rem', padding: '2px 4px' }}
               >
-                {OPERATORS.map(op => (
-                  <option key={op} value={op}>{op}</option>
-                ))}
+                <optgroup label="Compare">
+                  {OPERATORS.map(op => (
+                    <option key={op} value={op}>{op}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Cross">
+                  <option value="XOVER">XOVER</option>
+                  <option value="XUNDER">XUNDER</option>
+                </optgroup>
               </select>
 
-              {/* Right side: value or ref */}
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              {/* Right side: depends on operator */}
+              {row.op === 'XOVER' || row.op === 'XUNDER' ? (
                 <select
                   className="form-select"
-                  value={row.rightType}
-                  onChange={e => updateRow(row.id, { rightType: e.target.value as 'value' | 'ref' })}
-                  style={{ width: 56, fontSize: '0.7rem', padding: '2px 4px' }}
+                  value={row.crossRight}
+                  onChange={e => updateRow(row.id, { crossRight: e.target.value })}
+                  style={{ minWidth: 100, fontSize: '0.75rem', padding: '2px 4px' }}
                 >
-                  <option value="value">val</option>
-                  <option value="ref">ref</option>
+                  <option value="">— cross with —</option>
+                  {availableRefs.filter(r => r !== row.left).map(ref => (
+                    <option key={ref} value={ref}>{ref}</option>
+                  ))}
                 </select>
-
-                {row.rightType === 'value' ? (
-                  <input
-                    className="form-input"
-                    type="text"
-                    value={row.rightVal}
-                    onChange={e => updateRow(row.id, { rightVal: e.target.value })}
-                    placeholder="e.g. 30, 70"
-                    style={{ width: 80, fontSize: '0.75rem', padding: '2px 4px' }}
-                  />
-                ) : (
+              ) : (
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <select
                     className="form-select"
-                    value={row.rightVal}
-                    onChange={e => updateRow(row.id, { rightVal: e.target.value })}
-                    style={{ minWidth: 100, fontSize: '0.75rem', padding: '2px 4px' }}
+                    value={row.rightType}
+                    onChange={e => updateRow(row.id, { rightType: e.target.value as 'value' | 'ref' })}
+                    style={{ width: 56, fontSize: '0.7rem', padding: '2px 4px' }}
                   >
-                    <option value="">— select —</option>
-                    {availableRefs.map(ref => (
-                      <option key={ref} value={ref}>{ref}</option>
-                    ))}
+                    <option value="value">val</option>
+                    <option value="ref">ref</option>
                   </select>
-                )}
-              </div>
+
+                  {row.rightType === 'value' ? (
+                    <input
+                      className="form-input"
+                      type="text"
+                      value={row.rightVal}
+                      onChange={e => updateRow(row.id, { rightVal: e.target.value })}
+                      placeholder="e.g. 30, 70"
+                      style={{ width: 80, fontSize: '0.75rem', padding: '2px 4px' }}
+                    />
+                  ) : (
+                    <select
+                      className="form-select"
+                      value={row.rightVal}
+                      onChange={e => updateRow(row.id, { rightVal: e.target.value })}
+                      style={{ minWidth: 100, fontSize: '0.75rem', padding: '2px 4px' }}
+                    >
+                      <option value="">— select —</option>
+                      {availableRefs.map(ref => (
+                        <option key={ref} value={ref}>{ref}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               {/* Remove row */}
               <button

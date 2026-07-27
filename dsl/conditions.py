@@ -50,7 +50,19 @@ class LogicOp:
 class Not:
     operand: Node
 
-Node = Union[Identifier, Number, Compare, LogicOp, Not]
+@dataclass
+class Crossover:
+    """Crossed above — e.g. CROSSOVER(ema_8, ema_5) means ema_8 just crossed above ema_5"""
+    left: Node
+    right: Node
+
+@dataclass
+class Crossunder:
+    """Crossed below — e.g. CROSSUNDER(ema_8, ema_5) means ema_8 just crossed below ema_5"""
+    left: Node
+    right: Node
+
+Node = Union[Identifier, Number, Compare, LogicOp, Not, Crossover, Crossunder]
 
 
 # ── Lexer ───────────────────────────────────────────────────────────────────
@@ -63,6 +75,7 @@ TOKEN_SPEC = [
     ("NUMBER",   r"-?\d+\.?\d*"),
     ("LPAREN",   r"\("),
     ("RPAREN",   r"\)"),
+    ("COMMA",    r","),
     ("IDENT",    r"[a-zA-Z_][a-zA-Z0-9_]*"),
     ("SKIP",     r"[ \t]+"),
     ("MISMATCH", r"."),
@@ -140,7 +153,7 @@ class Parser:
             return Compare(op=op, left=left, right=right)
         return left
 
-    # value → IDENTIFIER | NUMBER | "(" expr ")"
+    # value → IDENTIFIER | NUMBER | "(" expr ")" | CROSSOVER(value, value) | CROSSUNDER(value, value)
     def _value(self) -> Node:
         tok = self.peek()
         if tok is None:
@@ -149,8 +162,20 @@ class Parser:
             self.consume("NUMBER")
             return Number(value=float(tok.value))
         if tok.kind == "IDENT":
+            name = tok.value
             self.consume("IDENT")
-            return Identifier(name=tok.value)
+            # Check for crossover/crossunder function call: CROSSOVER(a, b)
+            if name.upper() == "CROSSOVER" or name.upper() == "CROSSUNDER":
+                self.consume("LPAREN")
+                left = self._expr()
+                self.consume("COMMA")
+                right = self._expr()
+                self.consume("RPAREN")
+                if name.upper() == "CROSSOVER":
+                    return Crossover(left=left, right=right)
+                else:
+                    return Crossunder(left=left, right=right)
+            return Identifier(name=name)
         if tok.kind == "LPAREN":
             self.consume("LPAREN")
             node = self._expr()
@@ -189,6 +214,12 @@ def collect_identifiers(node: Node) -> Set[str]:
             walk(n.right)
         elif isinstance(n, Not):
             walk(n.operand)
+        elif isinstance(n, Crossover):
+            walk(n.left)
+            walk(n.right)
+        elif isinstance(n, Crossunder):
+            walk(n.left)
+            walk(n.right)
     walk(node)
     return refs
 
@@ -212,5 +243,9 @@ def to_pine_condition(node: Node) -> str:
             return f"({render(n.left)} {op_lower} {render(n.right)})"
         elif isinstance(n, Not):
             return f"not ({render(n.operand)})"
+        elif isinstance(n, Crossover):
+            return f"ta.crossover({render(n.left)}, {render(n.right)})"
+        elif isinstance(n, Crossunder):
+            return f"ta.crossunder({render(n.left)}, {render(n.right)})"
         raise ValueError(f"Unknown node: {n}")
     return render(node)

@@ -140,7 +140,7 @@ def list_tickers(category: str = "crypto") -> list:
         ],
         "stocks": [
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
-            "META", "TSLA", "SPY", "QQQ", "IWM",
+            "META", "TSLA", "SPY", "QQQ", "IWM", "SPCX"
         ],
     }
     return tickers.get(category, tickers["synthetic"])
