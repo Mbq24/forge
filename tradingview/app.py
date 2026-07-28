@@ -1224,21 +1224,19 @@ def api_advisor_suggest():
         # Strategy: Ranging / Mean Reversion
         else:
             explanation_parts.append(f"🌊 Ranging (RSI ≈ {rsi_val:.0f})")
-            if instrument_type == "indices":
-                patterns.extend(["doji", "hammer"])
-                signals["entry"] = f"rsi < {rsi_entry_threshold} AND hammer AND proximity < -1"
-                signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
-                explanation_parts.append("→ Indices mean revert well — oversold + hammer on EMA touch")
-            elif instrument_type == "forex":
-                patterns.extend(["doji", "hammer"])
+            patterns.append("hammer")
+            # Start with the simplest reliable signal: RSI oversold + EMA touch
+            # (No pattern requirement — those are too rare for most markets)
+            if instrument_type == "forex":
                 signals["entry"] = f"rsi < {rsi_entry_threshold} AND proximity < -1 AND NOT session_slow"
-                signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
-                explanation_parts.append("→ Forex range: oversold entries during active sessions only")
+                explanation_parts.append("→ Oversold during active sessions at EMA touch")
+            elif instrument_type == "indices":
+                signals["entry"] = f"proximity < -1 AND rsi < {rsi_entry_threshold}"
+                explanation_parts.append("→ EMA touch + oversold — indices revert well")
             else:
-                patterns.extend(["doji", "hammer"])
-                signals["entry"] = f"rsi < {rsi_entry_threshold} AND hammer AND proximity < -1"
-                signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
-                explanation_parts.append("→ Mean reversion: oversold + hammer at EMA touch")
+                signals["entry"] = f"proximity < -1 AND rsi < {rsi_entry_threshold}"
+                explanation_parts.append("→ Price at EMA touch + oversold RSI")
+            signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
 
         if high_volume:
             explanation_parts.append(f"📊 High volume (x{vol_ratio:.1f}) — confirms conviction")
