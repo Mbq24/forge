@@ -35,3 +35,10 @@ tradingview/README.txt
 
 # Trading data (CSV training data, etc.)
 *.csv
+
+# C# build artifacts
+csharp-model/**/bin/
+csharp-model/**/obj/
+
+# iCloud sync artifacts
+*.icloud
