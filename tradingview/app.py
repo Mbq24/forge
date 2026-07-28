@@ -711,6 +711,37 @@ def api_indicators():
     })
 
 
+def _auto_fix_compound_emas(indicators: list, compounds: list) -> list:
+    """Replace compound EMA references with only EMAs that actually exist.
+    
+    Old strategies may reference ema_13 in compounds when only ema_5, ema_8, ema_20
+    are defined. This auto-fixes them on save so users don't get validation errors.
+    """
+    ema_ids = {i["id"] for i in indicators if i.get("type") == "ema"}
+    if not ema_ids:
+        return compounds
+    fixed = []
+    for c in compounds:
+        ctype = c.get("type", "")
+        if ctype in ("ema_alignment", "ema_spread"):
+            old_emas = c.get("params", {}).get("emas", [])
+            valid = [e for e in old_emas if e in ema_ids]
+            if len(valid) < 2:
+                # Not enough valid EMAs — use the shortest ones available
+                sorted_emas = sorted(ema_ids, key=lambda x: int(x.split("_")[-1]) if x.split("_")[-1].isdigit() else 999)
+                valid = sorted_emas[:min(3, len(sorted_emas))]
+            c["params"]["emas"] = valid
+        elif ctype in ("pull_count", "candle_proximity"):
+            old_ema = c.get("params", {}).get("ema", "")
+            if old_ema and old_ema not in ema_ids:
+                # Pick the shortest-period EMA
+                sorted_emas = sorted(ema_ids, key=lambda x: int(x.split("_")[-1]) if x.split("_")[-1].isdigit() else 999)
+                if sorted_emas:
+                    c["params"]["ema"] = sorted_emas[0]
+        fixed.append(c)
+    return fixed
+
+
 @app.route('/api/dsl', methods=['POST'])
 def api_dsl_create():
     """Create a new DSL definition from JSON body."""
@@ -749,6 +780,7 @@ def api_dsl_create():
 
         compounds = data.get("compounds", [])
         if compounds:
+            compounds = _auto_fix_compound_emas(data.get("indicators", []), compounds)
             yaml_data["compounds"] = [
                 {"id": c["id"], "type": c["type"], "params": c.get("params", {})}
                 for c in compounds
@@ -933,6 +965,7 @@ def api_dsl_update(name):
             ]
         compounds = data.get("compounds", [])
         if compounds:
+            compounds = _auto_fix_compound_emas(data.get("indicators", []), compounds)
             yaml_data["compounds"] = [
                 {"id": c["id"], "type": c["type"], "params": c.get("params", {})}
                 for c in compounds
