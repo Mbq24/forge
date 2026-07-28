@@ -993,19 +993,33 @@ def api_dsl_delete(name):
 def api_advisor_suggest():
     """Analyze market data and suggest an indicator combo.
 
-    Fetches real data, runs technical analysis, then returns a suggested
-    DSL definition tailored to the current regime.
+    Accepts optional user preferences for personalized strategy suggestions
+    and multi-timeframe analysis for trend alignment.
     """
     try:
         data = request.get_json() or {}
         ticker = data.get("ticker", "BTC-USD")
         interval = data.get("interval", "1h")
         period = data.get("period", "7d")
+        preferences = data.get("preferences", {})
 
-        # Fetch and compute analysis
+        trade_style = preferences.get("trade_style", "intraday")
+        risk_level = preferences.get("risk_level", "moderate")
+        instrument_type = preferences.get("instrument_type", "crypto")
+        direction_bias = preferences.get("direction_bias", "both")
+
+        # ── Higher timeframe for multi-TF analysis ──
+        tf_map = {"15m": "1h", "30m": "1h", "1h": "4h", "4h": "1d", "1d": "1w"}
+        higher_tf = tf_map.get(interval, "4h")
+
+        # Fetch current TF data
         df = fetch_ohlcv(ticker, interval=interval, period=period)
         if df.empty or len(df) < 20:
             return jsonify({"error": f"Not enough data for {ticker} ({len(df)} bars, need 20+)"}), 400
+
+        # Fetch higher TF data for alignment check
+        df_higher = fetch_ohlcv(ticker, interval=higher_tf, period="1mo" if higher_tf == "1w" else "2mo")
+        has_higher_tf = not df_higher.empty and len(df_higher) >= 5
 
         c = df["close"]
         h = df["high"]
@@ -1015,29 +1029,100 @@ def api_advisor_suggest():
         # ── Analysis ──
         returns = c.pct_change().dropna()
 
-        # Trend strength (ADX-like: ratio of directional movement to noise)
+        # Trend strength
         trend_strength = abs(c.diff().mean()) / c.diff().std() if c.diff().std() > 0 else 0
         is_trending = trend_strength > 0.15
 
         # Volatility regime
         atr_val = (h - l).mean() / c.mean()
-        is_volatile = atr_val > 0.02  # >2% average range
+        is_volatile = atr_val > 0.02
 
-        # RSI regime
+        # RSI estimate
         rsi_val = 100 - (100 / (1 + returns[returns > 0].mean() / abs(returns[returns < 0].mean()))) if returns[returns < 0].mean() != 0 else 50
         is_overbought = rsi_val > 60
         is_oversold = rsi_val < 40
 
-        # Volume analysis
+        # Volume
         vol_ratio = v.iloc[-20:].mean() / v.mean() if v.mean() > 0 else 1
         high_volume = vol_ratio > 1.2
         low_volume = vol_ratio < 0.8
 
-        # Price vs moving average
+        # MA50
         ma50 = c.rolling(50).mean().iloc[-1] if len(c) >= 50 else c.mean()
         above_ma = c.iloc[-1] > ma50
 
-        # ── Build suggestion ──
+        # ── Multi-TF analysis ──
+        multi_tf = {}
+        if has_higher_tf:
+            ch = df_higher["close"]
+            hh = df_higher["high"]
+            lh = df_higher["low"]
+            # Higher TF trend direction
+            ma20_h = ch.rolling(20).mean()
+            ma50_h = ch.rolling(50).mean() if len(ch) >= 50 else None
+            higher_trend = "up" if (not ma50_h is None and ch.iloc[-1] > ma50_h.iloc[-1]) else \
+                           "down" if (not ma50_h is None and ch.iloc[-1] < ma50_h.iloc[-1]) else "sideways"
+            # Higher TF ATR
+            atr_h = (hh - lh).mean() / ch.mean()
+            # Higher TF RSI
+            ret_h = ch.pct_change().dropna()
+            rsi_h = 100 - (100 / (1 + ret_h[ret_h > 0].mean() / abs(ret_h[ret_h < 0].mean()))) if ret_h[ret_h < 0].mean() != 0 else 50
+            # Trend alignment between TFs
+            trend_aligned = (higher_trend == "up" and above_ma) or (higher_trend == "down" and not above_ma)
+            multi_tf = {
+                "higher_interval": higher_tf,
+                "higher_trend": higher_trend,
+                "higher_rsi": round(float(rsi_h), 1),
+                "higher_atr_pct": round(float(atr_h * 100), 2),
+                "trend_aligned": bool(trend_aligned),
+            }
+        else:
+            multi_tf = {
+                "higher_interval": higher_tf,
+                "higher_trend": "unknown",
+                "higher_rsi": 0,
+                "higher_atr_pct": 0,
+                "trend_aligned": True,  # no conflicting info
+            }
+
+        # ── Instrument personality ──
+        inst_profiles = {
+            "crypto": {
+                "name": "crypto",
+                "atr_threshold": 0.025,  # naturally more volatile
+                "trend_threshold": 0.20,  # needs stronger trend
+                "prefers": "momentum",
+                "avoids": "tight mean reversion",
+                "note": "24/7 market, gap risk, news-driven spikes",
+            },
+            "forex": {
+                "name": "forex",
+                "atr_threshold": 0.008,  # lower vol
+                "trend_threshold": 0.12,
+                "prefers": "session-based trend",
+                "avoids": "overnight holds without stop",
+                "note": "Session matters (London/NY overlap is prime)",
+            },
+            "stocks": {
+                "name": "stocks",
+                "atr_threshold": 0.015,
+                "trend_threshold": 0.15,
+                "prefers": "trend following",
+                "avoids": "trading through earnings",
+                "note": "Smoother, after-hours gaps, earnings events",
+            },
+            "indices": {
+                "name": "indices",
+                "atr_threshold": 0.01,
+                "trend_threshold": 0.15,
+                "prefers": "mean reversion on short TFs, trend on long",
+                "avoids": "over-leveraging in low vol",
+                "note": "Mean reverting intraday, trending on daily+",
+            },
+        }
+        inst = inst_profiles.get(instrument_type, inst_profiles["crypto"])
+
+        # ── Build personalized suggestion ──
         suggestion_id = f"advisor-{ticker.lower().replace('-', '').replace('=', '')}"
         indicators = []
         compounds = []
@@ -1045,83 +1130,140 @@ def api_advisor_suggest():
         signals = {}
         explanation_parts = []
 
-        # Always add EMAs for trend context
-        ema_periods = [5, 8, 13]
+        def add_standard_emas():
+            if trade_style == "scalp":
+                return [3, 5, 8]
+            elif trade_style == "intraday":
+                return [5, 8, 13]
+            else:  # swing
+                return [8, 13, 21]
+
+        ema_periods = add_standard_emas()
         for p in ema_periods:
             indicators.append({"id": f"ema_{p}", "type": "ema", "params": {"period": p}})
 
-        # Always add ATR and RSI
         indicators.append({"id": "rsi", "type": "rsi", "params": {"period": 14}})
         indicators.append({"id": "atr", "type": "atr", "params": {"period": 14}})
 
-        # Add EMA alignment compound
         compounds.append({
             "id": "alignment",
             "type": "ema_alignment",
             "params": {"emas": [f"ema_{p}" for p in ema_periods]},
         })
-
-        # Spread compound
         compounds.append({
             "id": "spread",
             "type": "ema_spread",
             "params": {"emas": [f"ema_{p}" for p in ema_periods]},
         })
-
-        # Pull count compound
         compounds.append({
             "id": "pull",
             "type": "pull_count",
-            "params": {"ema": "ema_5"},
+            "params": {"ema": f"ema_{ema_periods[0]}"},
         })
-
-        # Candle proximity
         compounds.append({
             "id": "proximity",
             "type": "candle_proximity",
-            "params": {"ema": "ema_5"},
+            "params": {"ema": f"ema_{ema_periods[0]}"},
         })
 
-        if is_trending:
-            explanation_parts.append(f"📈 Trending market detected (strength={trend_strength:.2f})")
+        # ── Strategy selection ──
+        # Override volatility detection for instrument type
+        local_volatile = atr_val > inst["atr_threshold"]
+        local_trending = trend_strength > inst["trend_threshold"]
+
+        # Adjust signals based on risk
+        rsi_entry_threshold = 30 if risk_level == "aggressive" else 35 if risk_level == "moderate" else 40
+        rsi_exit_threshold = 70 if risk_level == "aggressive" else 65 if risk_level == "moderate" else 60
+        pull_exit_threshold = 2 if risk_level == "aggressive" else 3 if risk_level == "moderate" else 4
+
+        if direction_bias == "short":
+            rsi_entry_threshold, rsi_exit_threshold = 70, 30
+
+        # Strategy: Trending
+        if local_trending and (not local_volatile or risk_level == "aggressive"):
+            explanation_parts.append(f"📈 Trending on {interval} (strength={trend_strength:.2f})")
+            if has_higher_tf:
+                if multi_tf["trend_aligned"]:
+                    explanation_parts.append(f"✅ {higher_tf} trend aligns — higher confidence")
+                else:
+                    explanation_parts.append(f"⚠️ {higher_tf} trend ({multi_tf['higher_trend']}) conflicts — reduce position size")
             if above_ma:
-                signals["entry"] = "alignment == 1 AND rsi > 50"
-                signals["exit"] = "alignment == -1 OR rsi < 30"
-                explanation_parts.append("→ Bull trend: look for EMA alignment + RSI>50 for entries")
+                if direction_bias != "short":
+                    signals["entry"] = f"alignment == 1 AND rsi > 50 AND proximity < 0"
+                    signals["exit"] = f"alignment == -1 OR pull >= {pull_exit_threshold}"
+                    explanation_parts.append(f"→ Bull trend: EMA alignment + RSI>50, exit on trend change or {pull_exit_threshold}+ candles above EMA")
+                else:
+                    signals["entry"] = "false"
+                    explanation_parts.append("→ Skipping long entries (short bias)")
             else:
-                signals["entry"] = "alignment == -1 AND rsi < 50"
-                signals["exit"] = "alignment == 1 OR rsi > 70"
-                explanation_parts.append("→ Bear trend: look for bear alignment + RSI<50")
-        elif is_volatile:
+                if direction_bias != "long":
+                    signals["entry"] = f"alignment == -1 AND rsi < 50 AND proximity > 0"
+                    signals["exit"] = f"alignment == 1 OR pull >= {pull_exit_threshold}"
+                    explanation_parts.append(f"→ Bear trend: EMA alignment + RSI<50, exit on trend change")
+                else:
+                    signals["entry"] = "false"
+                    explanation_parts.append("→ Skipping short entries (long bias)")
+
+        # Strategy: Volatile / Squeeze
+        elif local_volatile:
             explanation_parts.append(f"⚡ Volatile market (ATR={atr_val*100:.1f}%)")
             patterns.extend(["hammer", "shooting_star"])
-            signals["entry"] = "spread < 0.005 AND (hammer OR proximity > 2)"
-            signals["exit"] = "pull >= 3 OR proximity < -2"
-            explanation_parts.append("→ Tight EMA spread + candle pattern = breakout entry")
-            explanation_parts.append("→ Exit on pull count >= 3 or extreme proximity")
+            if instrument_type == "crypto":
+                signals["entry"] = f"CROSSOVER(ema_{ema_periods[0]}, ema_{ema_periods[-1]}) AND rsi > 50"
+                signals["exit"] = f"pull >= {pull_exit_threshold} OR rsi < 40"
+                explanation_parts.append("→ Crypto vol: EMA crossover + RSI confirmation")
+            elif instrument_type == "forex":
+                signals["entry"] = "spread < 0.003 AND CROSSOVER(ema_8, ema_13)"
+                signals["exit"] = f"pull >= {pull_exit_threshold} OR spread > 0.01"
+                explanation_parts.append("→ Forex vol: EMA squeeze + breakout entry")
+            else:
+                signals["entry"] = f"spread < 0.005 AND (hammer OR proximity > 2)"
+                signals["exit"] = f"pull >= {pull_exit_threshold} OR proximity < -2"
+                explanation_parts.append("→ Tight spread + candle pattern = breakout entry")
+
+        # Strategy: Ranging / Mean Reversion
         else:
-            explanation_parts.append(f"🌊 Ranging market (RSI ≈ {rsi_val:.0f})")
-            patterns.extend(["doji", "hammer"])
-            signals["entry"] = "rsi < 30 AND hammer AND proximity < -1"
-            signals["exit"] = "rsi > 70 OR pull >= 3"
-            explanation_parts.append("→ Mean reversion: oversold + hammer pattern")
-            explanation_parts.append("→ Exit on overbought or 3+ pulls above EMA 5")
+            explanation_parts.append(f"🌊 Ranging (RSI ≈ {rsi_val:.0f})")
+            if instrument_type == "indices":
+                patterns.extend(["doji", "hammer"])
+                signals["entry"] = f"rsi < {rsi_entry_threshold} AND hammer AND proximity < -1"
+                signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
+                explanation_parts.append("→ Indices mean revert well — oversold + hammer on EMA touch")
+            elif instrument_type == "forex":
+                patterns.extend(["doji", "hammer"])
+                signals["entry"] = f"rsi < {rsi_entry_threshold} AND proximity < -1 AND NOT session_slow"
+                signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
+                explanation_parts.append("→ Forex range: oversold entries during active sessions only")
+            else:
+                patterns.extend(["doji", "hammer"])
+                signals["entry"] = f"rsi < {rsi_entry_threshold} AND hammer AND proximity < -1"
+                signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
+                explanation_parts.append("→ Mean reversion: oversold + hammer at EMA touch")
 
         if high_volume:
-            explanation_parts.append(f"📊 Above-average volume (x{vol_ratio:.1f}) — confirms moves")
+            explanation_parts.append(f"📊 High volume (x{vol_ratio:.1f}) — confirms conviction")
         elif low_volume:
-            explanation_parts.append(f"📊 Below-average volume (x{vol_ratio:.1f}) — weak moves, cautious")
+            explanation_parts.append(f"📊 Low volume (x{vol_ratio:.1f}) — weak moves, cautious")
 
-        # Add sentiment
+        # Sentiment
         if is_overbought:
-            explanation_parts.append("⚠️ Market near overbought — exits may trigger soon")
+            explanation_parts.append("⚠️ Market near overbought — exits may trigger")
         elif is_oversold:
-            explanation_parts.append("⚠️ Market near oversold — entries may trigger soon")
+            explanation_parts.append("⚠️ Market near oversold — entries may trigger")
+
+        # Risk note
+        if risk_level == "conservative":
+            explanation_parts.append("🛡️ Conservative: prefer tight stops, smaller positions")
+        elif risk_level == "aggressive":
+            explanation_parts.append("🔥 Aggressive: wider stops, higher frequency")
+
+        # Instrument note
+        explanation_parts.append(f"ℹ️ {inst['note']}")
 
         # Build suggested DSL
         suggested_dsl = {
             "name": f"{ticker} Advisor",
-            "description": f"LLM-suggested indicator for {ticker} ({interval}) — {explanation_parts[0] if explanation_parts else 'Regime-based'}",
+            "description": f"Advisor-suggested for {ticker} ({interval}) — {inst['name']}, {trade_style}",
             "timeframe": interval,
             "indicators": indicators,
             "compounds": compounds,
@@ -1134,6 +1276,13 @@ def api_advisor_suggest():
             "ticker": ticker,
             "interval": interval,
             "period": period,
+            "preferences": {
+                "trade_style": trade_style,
+                "risk_level": risk_level,
+                "instrument_type": instrument_type,
+                "direction_bias": direction_bias,
+            },
+            "multi_tf": multi_tf,
             "analysis": {
                 "trend_strength": round(float(trend_strength), 3),
                 "is_trending": bool(is_trending),

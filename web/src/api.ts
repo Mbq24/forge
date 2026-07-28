@@ -109,6 +109,20 @@ export async function deleteDsl(name: string): Promise<void> {
 export interface AdvisorSuggestion {
   ticker: string
   interval: string
+  period: string
+  preferences: {
+    trade_style: string
+    risk_level: string
+    instrument_type: string
+    direction_bias: string
+  }
+  multi_tf: {
+    higher_interval: string
+    higher_trend: string
+    higher_rsi: number
+    higher_atr_pct: number
+    trend_aligned: boolean
+  }
   analysis: {
     trend_strength: number
     is_trending: boolean
@@ -124,11 +138,23 @@ export interface AdvisorSuggestion {
   suggested_dsl: any
 }
 
-export async function fetchAdvisorSuggestion(ticker: string, interval: string, period: string): Promise<AdvisorSuggestion> {
+export interface AdvisorPrefs {
+  trade_style: 'scalp' | 'intraday' | 'swing'
+  risk_level: 'conservative' | 'moderate' | 'aggressive'
+  instrument_type: 'crypto' | 'forex' | 'stocks' | 'indices'
+  direction_bias: 'both' | 'long' | 'short'
+}
+
+export async function fetchAdvisorSuggestion(
+  ticker: string,
+  interval: string,
+  period: string,
+  preferences: AdvisorPrefs
+): Promise<AdvisorSuggestion> {
   const res = await fetch(`${BASE}/advisor/suggest`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ticker, interval, period }),
+    body: JSON.stringify({ ticker, interval, period, preferences }),
   })
   if (!res.ok) {
     const err = await res.json()
