@@ -76,7 +76,18 @@ export default function Advisor() {
       if (!res.ok) {
         const err = await res.json()
         if (res.status === 409) {
-          navigate(`/dsl/new?edit=${encodeURIComponent(result.suggested_dsl.name)}`)
+          // Already exists — update with the new suggestion
+          const safeName = result.suggested_dsl.name.toLowerCase().replace(/ /g, '-').replace(/[^a-z0-9_-]/g, '')
+          const updateRes = await fetch(`/api/dsl/${encodeURIComponent(safeName)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(result.suggested_dsl),
+          })
+          if (!updateRes.ok) {
+            const updateErr = await updateRes.json()
+            throw new Error(updateErr.error || 'Failed to update')
+          }
+          navigate(`/dsl/${encodeURIComponent(safeName)}`)
           return
         }
         throw new Error(err.error || 'Failed to save')
