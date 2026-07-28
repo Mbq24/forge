@@ -133,6 +133,9 @@ export interface AdvisorSuggestion {
     volume_ratio: number
     bar_count: number
     date_range: string
+    entry_signals: number
+    exit_signals: number
+    signal_verified: boolean
   }
   explanation: string[]
   suggested_dsl: any

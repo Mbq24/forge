@@ -201,6 +201,11 @@ export default function Advisor() {
                   <div><strong>Above MA50:</strong> {result.analysis.above_ma ? '✅ Yes' : '❌ No'}</div>
                   <div><strong>Volume Ratio:</strong> x{result.analysis.volume_ratio}</div>
                 </div>
+                {result.analysis.signal_verified && (
+                  <div style={{ fontSize: '0.8rem', padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: '4px', marginTop: '4px' }}>
+                    <strong>Signals:</strong> {result.analysis.entry_signals} entries, {result.analysis.exit_signals} exits / {result.analysis.bar_count} bars
+                  </div>
+                )}
                 <div style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>
                   {result.analysis.date_range}
                 </div>

@@ -1272,6 +1272,47 @@ def api_advisor_suggest():
             "plots": [{"ref": f"ema_{p}", "style": "line"} for p in ema_periods],
         }
 
+        # Verify signals against real data
+        signal_verified = False
+        entry_bar_count = 0
+        exit_bar_count = 0
+        if signals.get("entry") and signals["entry"] != "false":
+            try:
+                from dsl.schema import IndicatorDSL as TestDSL, IndicatorDef as TID, CompoundIndicator as TC, SignalDef as TSD
+                from generators.local import compute_indicators
+                test_indicators = [TID(id=f"ema_{p}", type="ema", params={"period": p}) for p in ema_periods]
+                test_indicators.append(TID(id="rsi", type="rsi", params={"period": 14}))
+                test_indicators.append(TID(id="atr", type="atr", params={"period": 14}))
+                test_compounds = [
+                    TC(id="alignment", type="ema_alignment", params={"emas": [f"ema_{p}" for p in ema_periods]}),
+                    TC(id="spread", type="ema_spread", params={"emas": [f"ema_{p}" for p in ema_periods]}),
+                    TC(id="pull", type="pull_count", params={"ema": f"ema_{ema_periods[0]}"}),
+                    TC(id="proximity", type="candle_proximity", params={"ema": f"ema_{ema_periods[0]}"}),
+                ]
+                test_dsl = TestDSL(
+                    name="_verify", timeframe=interval,
+                    indicators=test_indicators, compounds=test_compounds,
+                    patterns=patterns, signals={
+                        k: TSD(condition=v) for k, v in signals.items()
+                    }, plots=[],
+                )
+                result_df = compute_indicators(df, test_dsl)
+                if "entry" in result_df.columns:
+                    entry_bar_count = int(result_df["entry"].sum())
+                    exit_bar_count = int(result_df["exit"].sum()) if "exit" in result_df.columns else 0
+                    signal_verified = True
+                    total = len(result_df)
+                    if entry_bar_count == 0:
+                        explanation_parts.append(
+                            f"⚠️ 0 entry signals in {total} bars — thresholds may be too tight"
+                        )
+                    else:
+                        explanation_parts.append(
+                            f"📊 {entry_bar_count} entries, {exit_bar_count} exits in {total} bars ({entry_bar_count/total*100:.1f}% hit rate)"
+                        )
+            except Exception:
+                pass
+
         return jsonify({
             "ticker": ticker,
             "interval": interval,
@@ -1293,6 +1334,9 @@ def api_advisor_suggest():
                 "volume_ratio": round(float(vol_ratio), 2),
                 "bar_count": int(len(df)),
                 "date_range": f"{df.index[0].strftime('%Y-%m-%d')} → {df.index[-1].strftime('%Y-%m-%d')}",
+                "entry_signals": entry_bar_count,
+                "exit_signals": exit_bar_count,
+                "signal_verified": signal_verified,
             },
             "explanation": explanation_parts,
             "suggested_dsl": suggested_dsl,
