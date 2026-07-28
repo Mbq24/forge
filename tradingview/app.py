@@ -1213,7 +1213,7 @@ def api_advisor_suggest():
                 signals["exit"] = f"pull >= {pull_exit_threshold} OR rsi < 40"
                 explanation_parts.append("→ Crypto vol: EMA crossover + RSI confirmation")
             elif instrument_type == "forex":
-                signals["entry"] = "spread < 0.003 AND CROSSOVER(ema_8, ema_13)"
+                signals["entry"] = f"spread < 0.003 AND CROSSOVER(ema_{ema_periods[0]}, ema_{ema_periods[-1]})"
                 signals["exit"] = f"pull >= {pull_exit_threshold} OR spread > 0.01"
                 explanation_parts.append("→ Forex vol: EMA squeeze + breakout entry")
             else:
