@@ -1223,16 +1223,16 @@ def api_advisor_suggest():
             if above_ma:
                 if direction_bias != "short":
                     signals["entry"] = f"alignment == 1 AND rsi > 50 AND proximity < 0"
-                    signals["exit"] = f"alignment == -1 OR pull >= {pull_exit_threshold}"
-                    explanation_parts.append(f"→ Bull trend: EMA alignment + RSI>50, exit on trend change or {pull_exit_threshold}+ candles above EMA")
+                    signals["exit"] = f"alignment == -1 OR (pull >= {pull_exit_threshold} AND rsi > 70)"
+                    explanation_parts.append(f"→ Bull trend: EMA alignment + RSI>50, exit on trend reversal or {pull_exit_threshold}+ candles above EMA if overbought")
                 else:
                     signals["entry"] = "false"
                     explanation_parts.append("→ Skipping long entries (short bias)")
             else:
                 if direction_bias != "long":
                     signals["entry"] = f"alignment == -1 AND rsi < 50 AND proximity > 0"
-                    signals["exit"] = f"alignment == 1 OR pull >= {pull_exit_threshold}"
-                    explanation_parts.append(f"→ Bear trend: EMA alignment + RSI<50, exit on trend change")
+                    signals["exit"] = f"alignment == 1 OR (pull >= {pull_exit_threshold} AND rsi < 30)"
+                    explanation_parts.append(f"→ Bear trend: EMA alignment + RSI<50, exit on trend reversal or oversold pullback")
                 else:
                     signals["entry"] = "false"
                     explanation_parts.append("→ Skipping short entries (long bias)")
@@ -1243,33 +1243,29 @@ def api_advisor_suggest():
             patterns.extend(["hammer", "shooting_star"])
             if instrument_type == "crypto":
                 signals["entry"] = f"CROSSOVER(ema_{ema_periods[0]}, ema_{ema_periods[-1]}) AND rsi > 50"
-                signals["exit"] = f"pull >= {pull_exit_threshold} OR rsi < 40"
-                explanation_parts.append("→ Crypto vol: EMA crossover + RSI confirmation")
+                signals["exit"] = f"pull >= {pull_exit_threshold} AND rsi < 45"
+                explanation_parts.append("→ Crypto vol: EMA crossover + RSI confirmation, exit when momentum fades")
             elif instrument_type == "forex":
                 signals["entry"] = f"spread < 0.003 AND CROSSOVER(ema_{ema_periods[0]}, ema_{ema_periods[-1]})"
-                signals["exit"] = f"pull >= {pull_exit_threshold} OR spread > 0.01"
-                explanation_parts.append("→ Forex vol: EMA squeeze + breakout entry")
+                signals["exit"] = f"pull >= {pull_exit_threshold} AND spread > 0.008"
+                explanation_parts.append("→ Forex vol: squeeze breakout, exit on EMA spread expansion")
             else:
                 signals["entry"] = f"spread < 0.005 AND (hammer OR proximity > 2)"
-                signals["exit"] = f"pull >= {pull_exit_threshold} OR proximity < -2"
-                explanation_parts.append("→ Tight spread + candle pattern = breakout entry")
+                signals["exit"] = f"pull >= {pull_exit_threshold} AND proximity < -1"
+                explanation_parts.append("→ Tight spread + candle pattern = breakout entry, exit on pullback below EMA")
 
         # Strategy: Ranging / Mean Reversion
         else:
             explanation_parts.append(f"🌊 Ranging (RSI ≈ {rsi_val:.0f})")
             patterns.append("hammer")
-            # Start with the simplest reliable signal: RSI oversold + EMA touch
-            # (No pattern requirement — those are too rare for most markets)
             if instrument_type == "forex":
                 signals["entry"] = f"rsi < {rsi_entry_threshold} AND proximity < -1 AND NOT session_slow"
                 explanation_parts.append("→ Oversold during active sessions at EMA touch")
-            elif instrument_type == "indices":
-                signals["entry"] = f"proximity < -1 AND rsi < {rsi_entry_threshold}"
-                explanation_parts.append("→ EMA touch + oversold — indices revert well")
             else:
                 signals["entry"] = f"proximity < -1 AND rsi < {rsi_entry_threshold}"
-                explanation_parts.append("→ Price at EMA touch + oversold RSI")
-            signals["exit"] = f"rsi > {rsi_exit_threshold} OR pull >= {pull_exit_threshold}"
+                explanation_parts.append("→ Price at EMA touch + oversold RSI — mean reversion entry")
+            # Exit at the other side of the range: price back above EMA + mid-range RSI
+            signals["exit"] = f"proximity > 0.5 AND rsi > {rsi_exit_threshold - 10}"
 
         if high_volume:
             explanation_parts.append(f"📊 High volume (x{vol_ratio:.1f}) — confirms conviction")
