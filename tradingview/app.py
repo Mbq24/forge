@@ -22,6 +22,7 @@ from dsl.indicators import INDICATOR_REGISTRY, PATTERN_MAP
 from generators.pinescript import generate_pinescript
 from generators.local import compute_indicators
 from generators.backtest import run_backtest
+from generators.harness import run_comparison
 from data_fetcher import fetch_ohlcv, list_tickers, format_data_preview
 
 load_dotenv()
@@ -1370,6 +1371,74 @@ def api_advisor_suggest():
             "explanation": explanation_parts,
             "suggested_dsl": suggested_dsl,
         })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# COMPARISON HARNESS
+# ════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/harness/compare', methods=['POST'])
+def api_harness_compare():
+    """Compare multiple strategies across instruments on identical data.
+
+    Body: {
+      "dsls": [ {name, indicators, compounds, patterns, signals}, ... ],
+      "tickers": ["BTC-USD", ...],
+      "interval": "1h",
+      "period": "1mo",
+      "random_iters": 60
+    }
+
+    Returns a matrix of rows, one per strategy x ticker, with backtest
+    metrics plus baselines (buy & hold, random entries) and an edge verdict.
+    """
+    try:
+        data = request.get_json() or {}
+        raw_dsls = data.get("dsls", [])
+        tickers = data.get("tickers", ["BTC-USD"])
+        interval = data.get("interval", "1h")
+        period = data.get("period", "1mo")
+        random_iters = int(data.get("random_iters", 60))
+
+        if not raw_dsls:
+            return jsonify({"error": "Provide at least one DSL definition"}), 400
+        if not tickers:
+            return jsonify({"error": "Provide at least one ticker"}), 400
+
+        from dsl.schema import IndicatorDef, CompoundIndicator, PlotDef, SignalDef
+
+        dsls = []
+        for raw in raw_dsls:
+            indicators = [IndicatorDef(id=i["id"], type=i["type"], params=i.get("params", {}))
+                          for i in raw.get("indicators", [])]
+            compounds = [CompoundIndicator(id=c["id"], type=c["type"], params=c.get("params", {}))
+                         for c in raw.get("compounds", [])]
+            patterns = raw.get("patterns", [])
+            signals = {}
+            sigs = raw.get("signals", {})
+            if isinstance(sigs, dict):
+                for k, v in sigs.items():
+                    if isinstance(v, str):
+                        signals[k] = SignalDef(condition=v)
+                    elif isinstance(v, dict) and "condition" in v:
+                        signals[k] = SignalDef(condition=v["condition"])
+            dsls.append(IndicatorDSL(
+                name=raw.get("name", "unnamed"),
+                description=raw.get("description", ""),
+                timeframe=raw.get("timeframe", interval),
+                indicators=indicators,
+                compounds=compounds,
+                patterns=patterns,
+                signals=signals,
+            ))
+
+        result = run_comparison(dsls, tickers, interval, period, random_iters)
+        return jsonify(result)
 
     except Exception as e:
         import traceback

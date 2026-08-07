@@ -198,3 +198,68 @@ export async function updateDsl(name: string, dslData: any): Promise<{ status: s
   }
   return res.json()
 }
+
+// ─── Comparison Harness ─────────────────────────────────────────────────────
+
+export interface HarnessRow {
+  strategy: string
+  ticker: string
+  interval: string
+  period: string
+  error: string | null
+  bars: number
+  regime: string
+  date_range: string
+  buy_hold_pct: number
+  total_trades: number
+  win_rate: number
+  total_return_pct: number
+  avg_return_pct: number
+  max_drawdown_pct: number
+  profit_factor: number
+  sharpe_ratio: number
+  avg_bars_held: number
+  edge_vs_buyhold_pct: number
+  random_mean_pct: number
+  random_std_pct: number
+  random_p5_pct: number
+  random_p95_pct: number
+  edge_vs_random_pct: number
+  z_score: number
+  verdict: string
+  verdict_label: string
+  verdict_tone: string
+}
+
+export interface HarnessResult {
+  rows: HarnessRow[]
+  summary: {
+    strategies: number
+    tickers: number
+    cells: number
+    edges: number
+    weak_edges: number
+    no_edges: number
+    insufficient: number
+    errors: number
+  }
+}
+
+export async function fetchHarnessCompare(
+  dsls: any[],
+  tickers: string[],
+  interval: string,
+  period: string,
+  random_iters = 60
+): Promise<HarnessResult> {
+  const res = await fetch(`${BASE}/harness/compare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dsls, tickers, interval, period, random_iters }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || `Harness failed: ${res.status}`)
+  }
+  return res.json()
+}
