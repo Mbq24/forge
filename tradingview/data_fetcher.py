@@ -2,7 +2,7 @@
 Data Fetcher — pull OHLCV data from multiple sources.
 
 Sources:
-  1. yfinance (Yahoo Finance) — free, no API key needed (currently broken on this machine)
+  1. yfinance (Yahoo Finance) — free, no API key needed
   2. Synthetic data generator — for testing and demos
   3. SQLite — existing webhook data
 
@@ -22,6 +22,19 @@ try:
 except ImportError:
     HAS_YFINANCE = False
 
+# yfinance rejects '1w' — it wants '1wk'. Normalize before download.
+_YF_INTERVAL_FIX = {"1w": "1wk"}
+# pandas date_range freq aliases (deprecated 'w' -> 'W')
+_PD_FREQ_FIX = {"1w": "W", "1wk": "W"}
+
+
+def _normalize_yf_interval(interval: str) -> str:
+    return _YF_INTERVAL_FIX.get(interval, interval)
+
+
+def _normalize_pd_freq(interval: str) -> str:
+    return _PD_FREQ_FIX.get(interval, interval)
+
 
 def fetch_ohlcv(
     ticker: str = "SYNTHETIC",
@@ -39,10 +52,11 @@ def fetch_ohlcv(
 
     if HAS_YFINANCE:
         try:
+            yf_interval = _normalize_yf_interval(interval)
             if start and end:
-                df = yf.download(ticker, start=start, end=end, interval=interval, progress=False)
+                df = yf.download(ticker, start=start, end=end, interval=yf_interval, progress=False)
             else:
-                df = yf.download(ticker, period=period, interval=interval, progress=False)
+                df = yf.download(ticker, period=period, interval=yf_interval, progress=False)
 
             if df.empty:
                 raise ValueError(f"No data returned for {ticker}")
@@ -90,7 +104,7 @@ def _generate_synthetic(interval: str = "1h", period: str = "7d") -> pd.DataFram
 
     # Start date
     now = datetime.now()
-    dates = pd.date_range(end=now, periods=n_bars, freq=interval)
+    dates = pd.date_range(end=now, periods=n_bars, freq=_normalize_pd_freq(interval))
 
     # Price with drift + mean reversion
     np.random.seed(42)
@@ -135,12 +149,12 @@ def list_tickers(category: str = "crypto") -> list:
             "DOGE-USD", "ADA-USD", "LINK-USD", "AVAX-USD",
         ],
         "forex": [
-            "EURUSD=X", "GBPUSD=X", "USDJPY=X", "XAUUSD=X",
-            "XAGUSD=X", "USDCAD=X", "AUDUSD=X",
+            "EURUSD=X", "GBPUSD=X", "USDJPY=X", "GC=F",
+            "SI=F", "USDCAD=X", "AUDUSD=X",
         ],
         "stocks": [
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
-            "META", "TSLA", "SPY", "QQQ", "IWM", "SPCX"
+            "META", "TSLA", "SPY", "QQQ", "IWM",
         ],
     }
     return tickers.get(category, tickers["synthetic"])

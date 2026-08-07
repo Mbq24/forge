@@ -1324,9 +1324,9 @@ def api_advisor_suggest():
                     }, plots=[],
                 )
                 result_df = compute_indicators(df, test_dsl)
-                if "entry" in result_df.columns:
-                    entry_bar_count = int(result_df["entry"].sum())
-                    exit_bar_count = int(result_df["exit"].sum()) if "exit" in result_df.columns else 0
+                if "signal_entry" in result_df.columns:
+                    entry_bar_count = int(result_df["signal_entry"].sum())
+                    exit_bar_count = int(result_df["signal_exit"].sum()) if "signal_exit" in result_df.columns else 0
                     signal_verified = True
                     total = len(result_df)
                     if entry_bar_count == 0:
@@ -1337,8 +1337,10 @@ def api_advisor_suggest():
                         explanation_parts.append(
                             f"📊 {entry_bar_count} entries, {exit_bar_count} exits in {total} bars ({entry_bar_count/total*100:.1f}% hit rate)"
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                explanation_parts.append(f"⚠️ Signal verification failed: {type(e).__name__}: {e}")
 
         return jsonify({
             "ticker": ticker,
