@@ -1,8 +1,0 @@
-is_global = true
-build_property.RootNamespace = RegressionModelCloseLong.ConsoleApp
-build_property.ProjectDir = /Users/mark/Library/Mobile Documents/com~apple~CloudDocs/VisualStudioProjects/DockerTVWebhook/csharp-model/RegressionModelCloseLong/RegressionModelCloseLong.WebApp/
-build_property.EnableComHosting = 
-build_property.EnableGeneratedComInterfaceComImportInterop = 
-build_property.CsWinRTUseWindowsUIXamlProjections = false
-build_property.EffectiveAnalysisLevelStyle = 
-build_property.EnableCodeStyleSeverity = 
