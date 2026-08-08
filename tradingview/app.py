@@ -1447,6 +1447,38 @@ def api_harness_compare():
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# PORTFOLIO MANAGER — CONTROL ROOM
+# ════════════════════════════════════════════════════════════════════════════
+
+PORTFOLIO_STATE_FILE = _project_root / "tradingview" / "portfolio_state.json"
+
+
+@app.route('/api/portfolio/state', methods=['POST'])
+def api_portfolio_state_post():
+    """Receive a state snapshot from portfolio-manager (pushed each cycle)."""
+    try:
+        data = request.get_json() or {}
+        if not data:
+            return jsonify({"error": "Empty payload"}), 400
+        PORTFOLIO_STATE_FILE.write_text(json.dumps(data, indent=2))
+        return jsonify({"status": "ok", "updated_at": data.get("updated_at", "")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/portfolio/state', methods=['GET'])
+def api_portfolio_state_get():
+    """Return the latest pushed portfolio-manager snapshot for the control room."""
+    if not PORTFOLIO_STATE_FILE.exists():
+        return jsonify({"error": "No portfolio state yet — portfolio-manager hasn't pushed", "state": None})
+    try:
+        data = json.loads(PORTFOLIO_STATE_FILE.read_text())
+        return jsonify({"state": data})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # DATABASE SETUP
 # ════════════════════════════════════════════════════════════════════════════
 

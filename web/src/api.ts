@@ -263,3 +263,44 @@ export async function fetchHarnessCompare(
   }
   return res.json()
 }
+
+// ─── Portfolio Manager control room ─────────────────────────────────────────
+
+export interface PortfolioState {
+  config: {
+    strategy: string
+    ticker: string
+    interval: string
+    period: string
+    asset: string
+    mode: string
+  }
+  strategy_name: string
+  source: string
+  updated_at: string
+  portfolio: {
+    cash: number
+    equity: number
+    position_value: number
+    total_trades: number
+    wins: number
+    losses: number
+    win_rate: number
+    positions: any[]
+    trade_log: any[]
+    equity_curve: any[]
+  }
+  trades: Array<Record<string, string>>
+  equity_curve: Array<Record<string, string>>
+}
+
+export async function fetchPortfolioState(): Promise<PortfolioState> {
+  const res = await fetch(`${BASE}/portfolio/state`)
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || `Failed to fetch portfolio state: ${res.status}`)
+  }
+  const data = await res.json()
+  if (!data.state) throw new Error('No portfolio state yet')
+  return data.state
+}

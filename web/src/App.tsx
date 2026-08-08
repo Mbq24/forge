@@ -5,6 +5,7 @@ import DslNew from './pages/DslNew'
 import Templates from './pages/Templates'
 import Advisor from './pages/Advisor'
 import Compare from './pages/Compare'
+import Portfolio from './pages/Portfolio'
 import Dashboard from './pages/Dashboard'
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <NavLink to="/dsl" className="nav-link">Indicator DSL</NavLink>
         <NavLink to="/advisor" className="nav-link" style={{ color: 'var(--violet)' }}>🔮 Advisor</NavLink>
         <NavLink to="/compare" className="nav-link" style={{ color: 'var(--cyan)' }}>🧪 Compare</NavLink>
+        <NavLink to="/portfolio" className="nav-link" style={{ color: 'var(--emerald)' }}>🎛 Portfolio</NavLink>
         <NavLink to="/dsl/new" className="nav-link" style={{ color: 'var(--emerald)' }}>+ New</NavLink>
       </nav>
       <div className="container">
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/dsl/:name" element={<DslDetail />} />
           <Route path="/advisor" element={<Advisor />} />
           <Route path="/compare" element={<Compare />} />
+          <Route path="/portfolio" element={<Portfolio />} />
         </Routes>
       </div>
     </div>
