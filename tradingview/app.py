@@ -1451,6 +1451,37 @@ def api_harness_compare():
 # ════════════════════════════════════════════════════════════════════════════
 
 PORTFOLIO_STATE_FILE = _project_root / "tradingview" / "portfolio_state.json"
+PORTFOLIO_CONFIG_FILE = _project_root / "tradingview" / "portfolio_config.json"
+
+
+@app.route('/api/portfolio/config', methods=['GET'])
+def api_portfolio_config_get():
+    """Return the desired config for portfolio-manager (pulled each cycle)."""
+    if not PORTFOLIO_CONFIG_FILE.exists():
+        return jsonify({"config": None})
+    try:
+        data = json.loads(PORTFOLIO_CONFIG_FILE.read_text())
+        return jsonify({"config": data})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/portfolio/config', methods=['PUT'])
+def api_portfolio_config_put():
+    """Set the desired config — portfolio-manager applies it on next cycle."""
+    try:
+        data = request.get_json() or {}
+        allowed = {"strategy", "ticker", "interval", "period", "asset", "mode"}
+        cleaned = {k: v for k, v in data.items() if k in allowed and v not in (None, "")}
+        if not cleaned:
+            return jsonify({"error": "No valid config fields"}), 400
+        # Mode guard: only paper allowed from the web UI for now
+        if cleaned.get("mode", "paper") != "paper":
+            return jsonify({"error": "Only 'paper' mode can be set from Forge UI"}), 400
+        PORTFOLIO_CONFIG_FILE.write_text(json.dumps(cleaned, indent=2))
+        return jsonify({"status": "ok", "config": cleaned})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/portfolio/state', methods=['POST'])

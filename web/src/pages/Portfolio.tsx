@@ -1,9 +1,31 @@
 import { useEffect, useState } from 'react'
 import Plot from 'react-plotly.js'
-import { fetchPortfolioState, PortfolioState } from '../api'
+import {
+  fetchPortfolioState, PortfolioState,
+  fetchDesiredConfig, updateDesiredConfig, DesiredConfig,
+  fetchDslList, DslListItem,
+} from '../api'
 
 const fmt = (v: number, digits = 2) =>
   v === null || v === undefined || Number.isNaN(v) ? '—' : v.toFixed(digits)
+
+const TICKER_PRESETS = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'GLD', 'GC=F', 'SPY', 'AAPL', 'EURUSD=X']
+const INTERVALS = ['15m', '30m', '1h', '4h', '1d']
+const PERIODS = ['5d', '7d', '1mo', '3mo']
+
+// Common yfinance ticker → Alpaca symbol map (asset is what the broker trades)
+const ASSET_HINTS: Record<string, string> = {
+  'BTC-USD': 'BTCUSD',
+  'ETH-USD': 'ETHUSD',
+  'SOL-USD': 'SOLUSD',
+  'GLD': 'GLD',
+  'SPY': 'SPY',
+  'AAPL': 'AAPL',
+  'EURUSD=X': 'EURUSD',
+}
+
+// Forge stores strategies as examples/<slug>.yaml — slugify the display name
+const slugify = (name: string) => name.toLowerCase().replace(/ /g, '-')
 
 function ageStr(iso: string): string {
   const then = new Date(iso).getTime()
@@ -21,6 +43,13 @@ export default function Portfolio() {
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState<number>(Date.now())
 
+  // Config editor
+  const [strategies, setStrategies] = useState<DslListItem[]>([])
+  const [desired, setDesired] = useState<DesiredConfig | null>(null)
+  const [cfgDraft, setCfgDraft] = useState<DesiredConfig>({})
+  const [cfgSaving, setCfgSaving] = useState(false)
+  const [cfgMsg, setCfgMsg] = useState('')
+
   const load = () => {
     setLoading(true)
     fetchPortfolioState()
@@ -29,8 +58,51 @@ export default function Portfolio() {
       .finally(() => setLoading(false))
   }
 
+  const loadConfig = () => {
+    fetchDesiredConfig()
+      .then(c => {
+        setDesired(c)
+        // Seed the draft from the desired config, or the running config
+        const seed = c || (state ? {
+          strategy: state.config.strategy,
+          ticker: state.config.ticker,
+          interval: state.config.interval,
+          period: state.config.period,
+          asset: state.config.asset,
+          mode: state.config.mode,
+        } : {})
+        setCfgDraft(seed)
+      })
+      .catch(() => {})
+  }
+
+  const handleSaveConfig = async () => {
+    setCfgSaving(true)
+    setCfgMsg('')
+    try {
+      const saved = await updateDesiredConfig(cfgDraft)
+      setDesired(saved)
+      setCfgMsg('✅ Saved — portfolio-manager applies this on its next cycle (hourly).')
+    } catch (e: any) {
+      setCfgMsg(`❌ ${e.message}`)
+    } finally {
+      setCfgSaving(false)
+    }
+  }
+
+  const handleTickerChange = (t: string) => {
+    const hint = ASSET_HINTS[t]
+    setCfgDraft(prev => ({
+      ...prev,
+      ticker: t,
+      asset: hint || prev.asset,
+    }))
+  }
+
   useEffect(() => {
     load()
+    loadConfig()
+    fetchDslList().then(setStrategies).catch(() => {})
     const iv = setInterval(() => setLastUpdated(Date.now()), 30000)
     return () => clearInterval(iv)
   }, [])
@@ -111,6 +183,73 @@ export default function Portfolio() {
   "mode": "${cfg.mode}"               ← "paper" (internal executor) or "live" (broker)
 }`}
                 </pre>
+              </div>
+            </div>
+          </div>
+
+          {/* Change what runs — pushed config, applied next cycle */}
+          <div className="card">
+            <div className="card-header">Change What Runs</div>
+            <div className="card-body">
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-dim)', marginBottom: '0.75rem' }}>
+                Set the desired config here — portfolio-manager pulls it on its next cycle (hourly)
+                and applies it. No need to touch the machine.
+                {desired && (
+                  <span style={{ marginLeft: '0.5rem', color: 'var(--amber)' }}>
+                    · pending: {desired.strategy} / {desired.ticker} {desired.interval}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'end' }}>
+                <div>
+                  <label className="form-label">Strategy</label>
+                  <select className="form-select" style={{ minWidth: 200 }}
+                    value={cfgDraft.strategy || ''}
+                    onChange={e => setCfgDraft({ ...cfgDraft, strategy: e.target.value })}>
+                    {strategies.map(s => (
+                      <option key={s.name} value={slugify(s.name) + '.yaml'}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Ticker</label>
+                  <select className="form-select" style={{ minWidth: 120 }}
+                    value={cfgDraft.ticker || ''}
+                    onChange={e => handleTickerChange(e.target.value)}>
+                    {TICKER_PRESETS.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Interval</label>
+                  <select className="form-select" value={cfgDraft.interval || ''}
+                    onChange={e => setCfgDraft({ ...cfgDraft, interval: e.target.value })}>
+                    {INTERVALS.map(iv => <option key={iv} value={iv}>{iv}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Period</label>
+                  <select className="form-select" value={cfgDraft.period || ''}
+                    onChange={e => setCfgDraft({ ...cfgDraft, period: e.target.value })}>
+                    {PERIODS.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Asset (broker)</label>
+                  <input className="form-select" style={{ width: 110 }}
+                    value={cfgDraft.asset || ''}
+                    onChange={e => setCfgDraft({ ...cfgDraft, asset: e.target.value })} />
+                </div>
+                <div>
+                  <button className="btn btn-primary" onClick={handleSaveConfig} disabled={cfgSaving}>
+                    {cfgSaving ? 'Saving...' : 'Apply to portfolio-manager'}
+                  </button>
+                </div>
+              </div>
+              {cfgMsg && <div style={{ marginTop: '0.6rem', fontSize: '0.78rem' }}>{cfgMsg}</div>}
+              <div style={{ marginTop: '0.6rem', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                Mode is locked to paper from the web UI for safety. The strategy YAML is loaded from
+                Forge/examples/ on the portfolio-manager machine — saving a strategy here makes it
+                available immediately.
               </div>
             </div>
           </div>

@@ -304,3 +304,36 @@ export async function fetchPortfolioState(): Promise<PortfolioState> {
   if (!data.state) throw new Error('No portfolio state yet')
   return data.state
 }
+
+export interface DesiredConfig {
+  strategy?: string
+  ticker?: string
+  interval?: string
+  period?: string
+  asset?: string
+  mode?: string
+}
+
+export async function fetchDesiredConfig(): Promise<DesiredConfig | null> {
+  const res = await fetch(`${BASE}/portfolio/config`)
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || `Failed to fetch desired config: ${res.status}`)
+  }
+  const data = await res.json()
+  return data.config || null
+}
+
+export async function updateDesiredConfig(cfg: DesiredConfig): Promise<DesiredConfig> {
+  const res = await fetch(`${BASE}/portfolio/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || `Failed to update config: ${res.status}`)
+  }
+  const data = await res.json()
+  return data.config
+}
