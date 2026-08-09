@@ -1471,7 +1471,7 @@ def api_portfolio_config_put():
     """Set the desired config — portfolio-manager applies it on next cycle."""
     try:
         data = request.get_json() or {}
-        allowed = {"strategy", "ticker", "interval", "period", "asset", "mode"}
+        allowed = {"strategy", "ticker", "interval", "period", "asset", "mode", "risk_pct"}
         cleaned = {k: v for k, v in data.items() if k in allowed and v not in (None, "")}
         if not cleaned:
             return jsonify({"error": "No valid config fields"}), 400
