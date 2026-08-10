@@ -26,10 +26,26 @@ def _pine_var_name(name: str) -> str:
 
 def _resolve_indicator_ref(ref: str, dsl: IndicatorDSL) -> str:
     """Get the Pine variable name for an indicator/compound ID, or pass through
-    for built-in price references (close, open, high, low, volume)."""
+    for built-in price references (close, open, high, low, volume).
+
+    Multi-output indicators (bb, stochastic, macd) render multiple variables;
+    plotting the bare id would reference a variable that doesn't exist. Map to
+    the primary output so plot(bb) → bb_middle, plot(stoch) → stoch_k,
+    plot(macd) → macd_line.
+    """
     price_refs = {"open", "high", "low", "close", "volume", "hlc3", "hl2", "ohlc4"}
     if ref in price_refs:
         return ref
+    for ind in dsl.indicators:
+        if ind.id == ref:
+            primary_outputs = {
+                "bb": f"{ind.id}_middle",
+                "stochastic": f"{ind.id}_k",
+                "macd": f"{ind.id}_line",
+            }
+            if ind.type in primary_outputs:
+                return _pine_var_name(primary_outputs[ind.type])
+            break
     return _pine_var_name(ref)
 
 
@@ -175,7 +191,9 @@ def generate_pinescript(dsl: IndicatorDSL) -> str:
             info = INDICATOR_REGISTRY.get(ind.type)
             if not info or info.vt_concept:
                 continue
-            var_name = _pine_var_name(ind.id)
+            # Use the resolver so multi-output indicators (bb → bb_middle,
+            # stochastic → stoch_k, macd → macd_line) plot a real variable
+            var_name = _resolve_indicator_ref(ind.id, dsl)
             period = ind.params.get("period", 0)
             color = _auto_color(0, ind.type, period)
             if info.category in ("momentum",) and ind.type not in ("macd",):
@@ -209,17 +227,32 @@ def generate_pinescript(dsl: IndicatorDSL) -> str:
                 lines.append(f"// ERROR parsing '{sig_name}': {e}")
                 lines.append(f"{_pine_var_name(sig_name)}_cond = false")
 
-        # Plot entry/exit markers
+        # Plot entry/exit markers — position-tracked so markers match the
+        # backtest's trades (backtest enters only when flat, exits only when
+        # in position). Without this, plotshape fires on EVERY bar the
+        # condition is true (e.g. 450 markers for 27 trades).
+        if "entry" in dsl.signals or "exit" in dsl.signals:
+            lines.append("")
+            lines.append("// Track position state so markers match backtest trades")
+            lines.append("var int _position = 0")
+        if "entry" in dsl.signals and "exit" in dsl.signals:
+            lines.append(
+                "_position := _position == 1 ? (exit_cond ? 0 : 1) : (entry_cond ? 1 : 0)"
+            )
+        elif "entry" in dsl.signals:
+            lines.append("_position := _position == 1 ? 1 : (entry_cond ? 1 : 0)")
+        elif "exit" in dsl.signals:
+            lines.append("_position := _position == 1 ? (exit_cond ? 0 : 1) : 0")
         if "entry" in dsl.signals:
             lines.append("")
             lines.append(
-                'plotshape(entry_cond, style=shape.triangleup, '
+                'plotshape(_position == 1 and _position[1] == 0, style=shape.triangleup, '
                 'location=location.belowbar, color=color.green, size=size.small, '
                 'title="Entry")'
             )
         if "exit" in dsl.signals:
             lines.append(
-                'plotshape(exit_cond, style=shape.triangledown, '
+                'plotshape(_position == 0 and _position[1] == 1, style=shape.triangledown, '
                 'location=location.abovebar, color=color.red, size=size.small, '
                 'title="Exit")'
             )

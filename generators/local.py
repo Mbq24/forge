@@ -284,7 +284,7 @@ def _compute_signal(df: pd.DataFrame, sig_name: str, sig_def, dsl: IndicatorDSL)
 
 def _evaluate_ast(df: pd.DataFrame, node) -> pd.Series:
     """Recursively evaluate a condition AST against a DataFrame."""
-    from dsl.conditions import Identifier, Number, Compare, LogicOp, Not
+    from dsl.conditions import Identifier, Number, Compare, LogicOp, Not, Crossover, Crossunder
     if isinstance(node, Identifier):
         if node.name in df.columns:
             return df[node.name].astype(float)
@@ -324,6 +324,19 @@ def _evaluate_ast(df: pd.DataFrame, node) -> pd.Series:
     elif isinstance(node, Not):
         operand = _evaluate_ast(df, node.operand)
         return (~operand.astype(bool)).astype(float)
+    elif isinstance(node, Crossover):
+        left = _evaluate_ast(df, node.left)
+        right = _evaluate_ast(df, node.right)
+        # Crossover: left was <= right last bar, and is > right this bar
+        prev_left = left.shift(1)
+        prev_right = right.shift(1)
+        return ((prev_left <= prev_right) & (left > right)).astype(float)
+    elif isinstance(node, Crossunder):
+        left = _evaluate_ast(df, node.left)
+        right = _evaluate_ast(df, node.right)
+        prev_left = left.shift(1)
+        prev_right = right.shift(1)
+        return ((prev_left >= prev_right) & (left < right)).astype(float)
     raise ValueError(f"Unknown node: {node}")
 
 

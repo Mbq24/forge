@@ -37,5 +37,9 @@ patterns:
   - doji
 
 signals:
-  entry: "spread < 0.003 AND alignment != 0 AND NOT doji"
-  exit: "spread > 0.01 OR rsi > 75"
+  # Real squeeze breakout: EMAs bunched (tight spread) AND price crosses
+  # ABOVE the upper Bollinger Band. Was "spread < 0.003" which fired on
+  # ~60% of bars — EMA spread on BTC is naturally < 0.003 most of the time.
+  # The BB crossover is the actual breakout trigger.
+  entry: "spread < 0.0015 AND CROSSOVER(close, bb_upper)"
+  exit: "spread > 0.005 OR rsi > 75"
