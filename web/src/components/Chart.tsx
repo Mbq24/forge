@@ -29,6 +29,8 @@ export default function Chart({ data }: ChartProps) {
       }))}
       layout={{
         ...data.layout,
+        dragmode: 'zoom',           // drag = box zoom (backend default is 'pan')
+        hovermode: data.layout?.hovermode || 'x unified',
         paper_bgcolor: '#0f172a',
         plot_bgcolor: '#0f172a',
         font: { color: '#94a3b8', size: 10, family: 'Segoe UI, system-ui, sans-serif' },
@@ -36,7 +38,13 @@ export default function Chart({ data }: ChartProps) {
         xaxis: { ...data.layout?.xaxis, gridcolor: '#1e293b' },
         yaxis: { ...data.layout?.yaxis, gridcolor: '#1e293b' },
       }}
-      config={{ responsive: true, displayModeBar: false, scrollZoom: true }}
+      config={{
+        responsive: true,
+        scrollZoom: true,           // scroll wheel zooms
+        displayModeBar: true,       // show zoom/pan/reset buttons
+        modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'],
+        doubleClick: 'reset',       // double-click resets zoom
+      }}
       style={{ width: '100%', height: '420px' }}
       useResizeHandler={true}
     />

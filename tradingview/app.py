@@ -464,10 +464,10 @@ def dsl_detail(name):
             yaxis=dict(gridcolor="#1e293b", showgrid=True),
             hovermode="x unified",
             legend=dict(orientation="h", y=1.1, font=dict(size=9)),
-            dragmode="pan",
+            dragmode="zoom",
         )
 
-        context["chart_html"] = fig.to_html(full_html=False, config={"responsive": True, "displayModeBar": False})
+        context["chart_html"] = fig.to_html(full_html=False, config={"responsive": True, "displayModeBar": True, "scrollZoom": True, "doubleClick": "reset"})
 
     except Exception as e:
         context["error"] = f"Data error: {e}"
@@ -627,7 +627,7 @@ def api_dsl_detail(name):
         result_data["chart_data"] = {
             "traces": traces,
             "layout": {
-                "dragmode": "pan",
+                "dragmode": "zoom",
                 "hovermode": "x unified",
                 "showlegend": True,
                 "legend": {"orientation": "h", "y": 1.1, "font": {"size": 9}},
@@ -907,7 +907,7 @@ def api_dsl_test():
             })
 
         return jsonify({
-            "chart_data": {"traces": traces, "layout": {"dragmode": "pan", "hovermode": "x unified", "showlegend": True, "legend": {"orientation": "h", "y": 1.1}}},
+            "chart_data": {"traces": traces, "layout": {"dragmode": "zoom", "hovermode": "x unified", "showlegend": True, "legend": {"orientation": "h", "y": 1.1}}},
             "stats": {
                 "entry_count": int(result["signal_entry"].sum()) if "signal_entry" in result.columns else 0,
                 "exit_count": int(result["signal_exit"].sum()) if "signal_exit" in result.columns else 0,
