@@ -1,0 +1,45 @@
+# Vol Expansion Momentum — trade the expansion phase itself
+# Enters when volatility is EXPLODING (ATR above its own 28-bar average)
+# in the direction of EMA alignment with a fresh EMA-5 crossover.
+# This is the "more aggressive when vol picks up" play: it sits out
+# compressed/quiet markets and piles in during expansion.
+name: "Vol Expansion Momentum"
+description: "ATR expansion + EMA alignment + fresh momentum — trades only when vol picks up"
+timeframe: "1h"
+
+indicators:
+  - id: ema_5
+    type: ema
+    params: { period: 5 }
+  - id: ema_8
+    type: ema
+    params: { period: 8 }
+  - id: ema_13
+    type: ema
+    params: { period: 13 }
+  - id: bb
+    type: bb
+    params: { period: 20, stddev: 2.0 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+  - id: atr
+    type: atr
+    params: { period: 14 }
+  - id: atr_avg
+    type: sma
+    params: { period: 28, source: atr }
+
+compounds:
+  - id: alignment
+    type: ema_alignment
+    params: { emas: [ema_5, ema_8, ema_13] }
+  - id: spread
+    type: ema_spread
+    params: { emas: [ema_5, ema_8, ema_13] }
+
+patterns: []
+
+signals:
+  entry: "atr > atr_avg AND alignment == 1 AND CROSSOVER(close, ema_5)"
+  exit: "alignment == -1 OR rsi > 80 OR CROSSUNDER(close, ema_13)"

@@ -9,3 +9,6 @@ web/node_modules/
 venv*/
 *.db
 *.csv
+# Runtime state written by app.py / portfolio-manager pushes — never bake into image
+tradingview/portfolio_config.json
+tradingview/portfolio_state.json

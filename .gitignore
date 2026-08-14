@@ -42,3 +42,7 @@ csharp-model/**/obj/
 
 # iCloud sync artifacts
 *.icloud
+
+# Runtime state (written by app.py + portfolio-manager pushes) — not source
+tradingview/portfolio_config.json
+tradingview/portfolio_state.json
