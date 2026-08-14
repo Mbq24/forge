@@ -55,6 +55,27 @@ def get_db():
         g.db.row_factory = sqlite3.Row
     return g.db
 
+@app.route('/health')
+def health():
+    """Liveness/readiness probe for Railway + uptime monitors."""
+    status = "ok"
+    checks = {"app": "ok"}
+
+    # Database reachable?
+    try:
+        db = get_db()
+        db.cursor().execute("SELECT 1").fetchone()
+        checks["database"] = "ok"
+    except Exception as e:
+        status = "degraded"
+        checks["database"] = f"error: {e}"
+
+    return jsonify({
+        "status": status,
+        "checks": checks,
+        "time": datetime.datetime.utcnow().isoformat() + "Z",
+    }), 200 if status == "ok" else 503
+
 @app.route('/')
 def dashboard():
     # Serve React SPA if built
