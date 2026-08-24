@@ -42,12 +42,19 @@ def fetch_ohlcv(
     period: str = "7d",
     start: Optional[str] = None,
     end: Optional[str] = None,
+    allow_synthetic: bool = True,
 ) -> pd.DataFrame:
     """Fetch OHLCV data for a ticker.
 
-    Falls back to synthetic data if yfinance fails or if ticker is 'SYNTHETIC'.
+    Falls back to synthetic data if yfinance fails or if ticker is 'SYNTHETIC'
+    — UNLESS ``allow_synthetic`` is False, in which case a fetch failure
+    raises RuntimeError instead. Trading/execution callers (portfolio-manager)
+    MUST pass allow_synthetic=False: a synthetic fallback means trading on
+    fabricated prices, which is worse than not trading at all.
     """
     if ticker == "SYNTHETIC":
+        if not allow_synthetic:
+            raise RuntimeError(f"Synthetic data requested for {ticker} but synthetic data is disallowed")
         return _generate_synthetic(interval=interval, period=period)
 
     if HAS_YFINANCE:
@@ -74,8 +81,14 @@ def fetch_ohlcv(
             return df
         except Exception as e:
             print(f"yfinance failed for {ticker}: {e}. Falling back to synthetic.")
+            if not allow_synthetic:
+                raise RuntimeError(
+                    f"Real data unavailable for {ticker} ({e}); refusing synthetic fallback"
+                ) from e
     else:
         print("yfinance not installed. Using synthetic data.")
+        if not allow_synthetic:
+            raise RuntimeError(f"yfinance not installed; cannot fetch real data for {ticker}")
 
     return _generate_synthetic(interval=interval, period=period)
 
