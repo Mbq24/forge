@@ -66,12 +66,23 @@ def random_entries_returns(
     hold_bars: int,
     iters: int = 60,
     seed: int = 42,
+    cost_per_trade: float = 0.0,
 ) -> Dict[str, float]:
     """Simulate n_entries random entries, each held for hold_bars.
 
-    Returns the distribution of total return % across `iters` shuffles.
-    This is the null hypothesis: if a strategy's return is not above the
-    upper tail of this distribution, its entries carry no measurable edge.
+    Returns the distribution of TOTAL return % across `iters` shuffles — the
+    SUM of the n_entries per-trade returns, so it is directly comparable to the
+    strategy's `total_return_pct` (also a sum across its trades). This is the
+    null hypothesis: if a strategy's return is not above the upper tail of this
+    distribution, its entries carry no measurable edge.
+
+    NOTE (Sep 2026 fix): this used to divide by n_entries, producing a MEAN
+    per-trade return on the random side while the strategy side is a SUM —
+    which inflated every z-score by roughly the trade count (36 trades →
+    z≈80 where the honest value is ≈2-4). Both sides are sums now.
+
+    cost_per_trade: fraction charged per random entry (round trip), so the
+    null hypothesis pays the same costs the strategy does.
     """
     closes = df["close"].to_numpy()
     n = len(closes)
@@ -87,7 +98,7 @@ def random_entries_returns(
     for i in range(iters):
         starts = rng.integers(0, max_start, size=n_entries)
         rets = closes[starts + hold_bars] / closes[starts] - 1.0
-        totals[i] = rets.sum() / n_entries * 100.0
+        totals[i] = (rets - cost_per_trade).sum() * 100.0
 
     return {
         "mean": round(float(totals.mean()), 2),
@@ -140,8 +151,16 @@ def compare_strategy(
     interval: str,
     period: str,
     random_iters: int = 60,
+    cost_bps_per_side: float = 0.0,
 ) -> Dict:
-    """Run one strategy on one instrument/window and return the full comparison."""
+    """Run one strategy on one instrument/window and return the full comparison.
+
+    cost_bps_per_side: trading cost (fees + slippage) per side in basis points
+    of notional. The row reports BOTH gross metrics (unchanged field names) and
+    net-of-cost metrics (`*_net` fields, plus `z_score_net` / `verdict_net`).
+    The random-entry null pays the same costs, so the net verdict is a fair
+    comparison rather than a penalty applied only to the strategy.
+    """
     row: Dict = {
         "strategy": dsl.name,
         "ticker": ticker,
@@ -197,6 +216,46 @@ def compare_strategy(
     row["verdict_label"] = ev["label"]
     row["verdict_tone"] = ev["tone"]
 
+    # ── Net-of-cost block ──────────────────────────────────────────────────
+    # Same simulation with fees+slippage charged on both fills of every trade.
+    # The random-entry null pays the identical round-trip cost, so the net
+    # verdict measures edge AFTER costs, not just the strategy's cost burden.
+    cost_frac = max(0.0, float(cost_bps_per_side)) / 10000.0
+    row["cost_bps_per_side"] = round(float(cost_bps_per_side), 4)
+    if cost_frac > 0:
+        bt_net = run_backtest(result, cost_bps_per_side=cost_bps_per_side)
+        rand_net = random_entries_returns(
+            result,
+            n_entries=max(bt.total_trades, 1),
+            hold_bars=max(int(bt.avg_bars_held), 1),
+            iters=random_iters,
+            cost_per_trade=2.0 * cost_frac,  # round trip per entry
+        )
+    else:
+        bt_net, rand_net = bt, rand
+    row["total_return_pct_net"] = round(bt_net.total_return_pct, 2)
+    row["avg_return_pct_net"] = round(bt_net.avg_return_pct, 2)
+    row["win_rate_net"] = bt_net.win_rate
+    row["max_drawdown_pct_net"] = round(bt_net.max_drawdown_pct, 2)
+    row["profit_factor_net"] = round(bt_net.profit_factor, 2)
+    row["sharpe_ratio_net"] = round(bt_net.sharpe_ratio, 2)
+    row["edge_vs_buyhold_net_pct"] = round(bt_net.total_return_pct - row["buy_hold_pct"], 2)
+    row["random_mean_net_pct"] = rand_net["mean"]
+    row["random_std_net_pct"] = rand_net["std"]
+    row["edge_vs_random_net_pct"] = round(bt_net.total_return_pct - rand_net["mean"], 2)
+    # Cost per round trip in return-% terms, and the per-side cost level at
+    # which the strategy's gross edge is exactly consumed (break-even).
+    row["cost_drag_pct"] = round(bt.total_return_pct - bt_net.total_return_pct, 2)
+    row["breakeven_bps_per_side"] = (
+        round(bt.total_return_pct * 10000.0 / (2.0 * bt.total_trades * 100.0), 2)
+        if bt.total_trades > 0 else None
+    )
+    ev_net = edge_verdict(bt_net.total_return_pct, rand_net, bt_net.total_trades)
+    row["z_score_net"] = ev_net["z_score"]
+    row["verdict_net"] = ev_net["verdict"]
+    row["verdict_label_net"] = ev_net["label"]
+    row["verdict_tone_net"] = ev_net["tone"]
+
     return row
 
 
@@ -210,21 +269,34 @@ def run_comparison(
     interval: str,
     period: str,
     random_iters: int = 60,
+    cost_bps_per_side: float = 0.0,
 ) -> Dict:
-    """Run the full strategy x ticker matrix."""
+    """Run the full strategy x ticker matrix.
+
+    cost_bps_per_side: fees+slippage per side (bps of notional) applied to both
+    the strategy and the random-entry null, so every `*_net` field and the
+    net verdicts reflect trading after costs. 0.0 (default) = gross-only.
+    """
     rows = []
     for dsl in dsls:
         for ticker in tickers:
-            rows.append(compare_strategy(dsl, ticker, interval, period, random_iters))
+            rows.append(compare_strategy(dsl, ticker, interval, period, random_iters,
+                                         cost_bps_per_side=cost_bps_per_side))
 
     summary = {
         "strategies": len(dsls),
         "tickers": len(tickers),
         "cells": len(rows),
+        "cost_bps_per_side": round(float(cost_bps_per_side), 4),
         "edges": sum(1 for r in rows if r.get("verdict") in ("edge", "strong")),
         "weak_edges": sum(1 for r in rows if r.get("verdict") == "weak"),
         "no_edges": sum(1 for r in rows if r.get("verdict") == "none"),
         "insufficient": sum(1 for r in rows if r.get("verdict") == "insufficient"),
         "errors": sum(1 for r in rows if r.get("error")),
+        "edges_net": sum(1 for r in rows if r.get("verdict_net") in ("edge", "strong")),
+        "weak_edges_net": sum(1 for r in rows if r.get("verdict_net") == "weak"),
+        "no_edges_net": sum(1 for r in rows if r.get("verdict_net") == "none"),
+        "insufficient_net": sum(1 for r in rows if r.get("verdict_net") == "insufficient"),
+        "profitable_net": sum(1 for r in rows if (r.get("total_return_pct_net") or 0) > 0),
     }
     return {"rows": rows, "summary": summary}

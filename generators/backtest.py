@@ -41,12 +41,20 @@ class BacktestResult:
 def run_backtest(
     df: pd.DataFrame,
     initial_capital: float = 10000.0,
+    cost_bps_per_side: float = 0.0,
 ) -> BacktestResult:
     """Run a simple long-only backtest using signal_entry and signal_exit columns.
 
     Args:
         df: DataFrame with columns 'signal_entry' and 'signal_exit' (boolean).
         initial_capital: Starting account balance.
+        cost_bps_per_side: Round-trip trading cost expressed PER SIDE, in basis
+            points of notional (fees + slippage combined). A long pays it twice
+            (once entering, once exiting), so 10 bps/side = 0.2% per round trip.
+            Net return per trade = (exit*(1-c)) / (entry*(1+c)) - 1, which
+            charges slippage on both fills and is the honest way to model a
+            market order pair. Default 0.0 keeps every existing gross-metric
+            caller byte-identical.
 
     Returns:
         BacktestResult with trades, metrics, and equity curve.
@@ -64,6 +72,14 @@ def run_backtest(
     close = df["close"]
     dates = [str(d) for d in df.index]
 
+    _c = max(0.0, float(cost_bps_per_side)) / 10000.0  # per-side cost as a fraction
+
+    def _net_return(entry_p: float, exit_p: float) -> float:
+        """Fractional return net of a per-side cost charged on both fills."""
+        if entry_p <= 0 or exit_p <= 0:
+            return 0.0
+        return (exit_p * (1.0 - _c)) / (entry_p * (1.0 + _c)) - 1.0
+
     trades: List[Trade] = []
     in_position = False
     entry_idx = -1
@@ -78,16 +94,16 @@ def run_backtest(
         current_equity = equity[-1]
 
         if in_position:
-            # Track floating equity
+            # Track floating equity (net of the cost of getting out now)
             current_price = float(close.iloc[i])
-            floating_return = (current_price - entry_price) / entry_price
+            floating_return = _net_return(entry_price, current_price)
             floating_equity = initial_capital + (initial_capital * floating_return)
             current_equity = floating_equity
 
             # Check exit signal
             if exit_sig.iloc[i]:
                 exit_price_val = float(close.iloc[i])
-                trade_return = (exit_price_val - entry_price) / entry_price
+                trade_return = _net_return(entry_price, exit_price_val)
                 trades.append(Trade(
                     entry_date=dates[entry_idx],
                     exit_date=dates[i],
@@ -114,7 +130,7 @@ def run_backtest(
     # Close any open position at the end
     if in_position:
         exit_price_val = float(close.iloc[-1])
-        trade_return = (exit_price_val - entry_price) / entry_price
+        trade_return = _net_return(entry_price, exit_price_val)
         trades.append(Trade(
             entry_date=dates[entry_idx],
             exit_date=dates[-1],
