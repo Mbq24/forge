@@ -1412,11 +1412,15 @@ def api_harness_compare():
       "tickers": ["BTC-USD", ...],
       "interval": "1h",
       "period": "1mo",
-      "random_iters": 60
+      "random_iters": 60,
+      "cost_bps_per_side": 0.0   # fees+slippage per side, bps of notional
     }
 
     Returns a matrix of rows, one per strategy x ticker, with backtest
     metrics plus baselines (buy & hold, random entries) and an edge verdict.
+    When cost_bps_per_side > 0 every row also carries net-of-cost metrics
+    plus `breakeven_bps_per_side` (the cost level at which the gross edge is
+    exactly consumed) and `z_score_net` / `verdict_net`.
     """
     try:
         data = request.get_json() or {}
@@ -1425,6 +1429,10 @@ def api_harness_compare():
         interval = data.get("interval", "1h")
         period = data.get("period", "1mo")
         random_iters = int(data.get("random_iters", 60))
+        try:
+            cost_bps_per_side = max(0.0, min(float(data.get("cost_bps_per_side", 0.0) or 0.0), 500.0))
+        except (TypeError, ValueError):
+            cost_bps_per_side = 0.0
 
         if not raw_dsls:
             return jsonify({"error": "Provide at least one DSL definition"}), 400
@@ -1458,7 +1466,8 @@ def api_harness_compare():
                 signals=signals,
             ))
 
-        result = run_comparison(dsls, tickers, interval, period, random_iters)
+        result = run_comparison(dsls, tickers, interval, period, random_iters,
+                                cost_bps_per_side=cost_bps_per_side)
         return jsonify(result)
 
     except Exception as e:

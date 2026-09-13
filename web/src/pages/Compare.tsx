@@ -9,7 +9,16 @@ const TICKER_GROUPS: { label: string; tickers: string[] }[] = [
 ]
 const ALL_TICKERS = TICKER_GROUPS.flatMap(g => g.tickers)
 const INTERVALS = ['15m', '30m', '1h', '4h', '1d']
-const PERIODS = ['5d', '7d', '1mo', '3mo']
+const PERIODS = ['5d', '7d', '1mo', '3mo', '6mo', '1y']
+// Fees + slippage per side, in bps of notional. A long pays it twice.
+// 10 bps/side ≈ 0.2% round trip (typical crypto market-order cost).
+const COST_LEVELS: { value: number; label: string }[] = [
+  { value: 0, label: '0 bps — gross (no costs)' },
+  { value: 5, label: '5 bps/side — 0.1% round trip (maker/low-fee)' },
+  { value: 10, label: '10 bps/side — 0.2% round trip (typical)' },
+  { value: 25, label: '25 bps/side — 0.5% round trip (retail fees)' },
+  { value: 50, label: '50 bps/side — 1.0% round trip (worst case)' },
+]
 
 const TONE_COLOR: Record<string, string> = {
   emerald: 'var(--emerald)',
@@ -42,6 +51,7 @@ export default function Compare() {
   const [tickers, setTickers] = useState<Set<string>>(new Set(['BTC-USD', 'GC=F']))
   const [interval, setInterval] = useState('1h')
   const [period, setPeriod] = useState('1mo')
+  const [costBps, setCostBps] = useState(10)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<HarnessResult | null>(null)
@@ -85,7 +95,7 @@ export default function Compare() {
           patterns: d.patterns,
           signals: Object.fromEntries(Object.entries(d.signals).map(([k, v]) => [k, (v as any).condition ?? v])),
         }))
-      const data = await fetchHarnessCompare(payload, Array.from(tickers), interval, period)
+      const data = await fetchHarnessCompare(payload, Array.from(tickers), interval, period, 60, costBps)
       setResult(data)
       setRunId(id => id + 1)
     } catch (e: any) {
@@ -96,6 +106,12 @@ export default function Compare() {
   }
 
   const s = result?.summary
+  // When a cost level is set, judge the verdict counts net of costs.
+  const netView = costBps > 0
+  const nEdges = netView ? (s?.edges_net ?? s?.edges ?? 0) : (s?.edges ?? 0)
+  const nWeak = netView ? (s?.weak_edges_net ?? s?.weak_edges ?? 0) : (s?.weak_edges ?? 0)
+  const nNone = netView ? (s?.no_edges_net ?? s?.no_edges ?? 0) : (s?.no_edges ?? 0)
+  const nInsuf = netView ? (s?.insufficient_net ?? s?.insufficient ?? 0) : (s?.insufficient ?? 0)
 
   return (
     <div>
@@ -103,8 +119,8 @@ export default function Compare() {
         <div>
           <div className="page-title">🧪 Comparison Harness</div>
           <div className="page-subtitle">
-            Test strategies against each other AND against doing nothing — buy & hold and random entries.
-            A positive z-score means the strategy's entries beat pure noise.
+            Test strategies against each other AND against doing nothing — buy & hold and random entries — with
+            trading costs applied, so you can see which edges survive real fees and slippage.
           </div>
         </div>
       </div>
@@ -169,6 +185,12 @@ export default function Compare() {
               </select>
             </div>
             <div>
+              <label className="form-label">Trading cost (fees + slippage, per side)</label>
+              <select className="form-select" value={costBps} onChange={e => setCostBps(Number(e.target.value))}>
+                {COST_LEVELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
               <button className="btn btn-primary" onClick={handleRun} disabled={loading}>
                 {loading ? 'Running matrix...' : '🧪 Run Comparison'}
               </button>
@@ -185,25 +207,29 @@ export default function Compare() {
           <div className="card-header">3 · Verdict</div>
           <div className="card-body">
             <div className="grid grid-4">
-              <div className="stat-box" style={{ borderColor: s.edges > 0 ? 'var(--emerald)' : 'var(--border)' }}>
-                <div className="value" style={{ color: s.edges > 0 ? 'var(--emerald)' : 'var(--text)' }}>{s.edges}</div>
-                <div className="label">Cells with real edge (z≥1)</div>
+              <div className="stat-box" style={{ borderColor: nEdges > 0 ? 'var(--emerald)' : 'var(--border)' }}>
+                <div className="value" style={{ color: nEdges > 0 ? 'var(--emerald)' : 'var(--text)' }}>{nEdges}</div>
+                <div className="label">Cells with real edge{netView ? ' after costs' : ''} (z≥1)</div>
               </div>
               <div className="stat-box">
-                <div className="value" style={{ color: 'var(--amber)' }}>{s.weak_edges}</div>
+                <div className="value" style={{ color: 'var(--amber)' }}>{nWeak}</div>
                 <div className="label">Weak edge (0.5≤z&lt;1)</div>
               </div>
               <div className="stat-box">
-                <div className="value" style={{ color: 'var(--rose)' }}>{s.no_edges}</div>
+                <div className="value" style={{ color: 'var(--rose)' }}>{nNone}</div>
                 <div className="label">No edge (below noise)</div>
               </div>
               <div className="stat-box">
-                <div className="value" style={{ color: 'var(--text-dim)' }}>{s.insufficient}</div>
+                <div className="value" style={{ color: 'var(--text-dim)' }}>{nInsuf}</div>
                 <div className="label">Too few trades to judge</div>
               </div>
             </div>
             <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text-dim)' }}>
               {s.cells} cells · {s.strategies} strategies × {s.tickers} instruments · {s.errors > 0 && `${s.errors} errored`}
+              {netView && (
+                <> · <strong style={{ color: s.profitable_net ? 'var(--emerald)' : 'var(--rose)' }}>
+                  {s.profitable_net ?? 0}/{s.cells} cells profitable after {costBps} bps/side</strong></>
+              )}
             </div>
           </div>
         </div>
@@ -221,11 +247,10 @@ export default function Compare() {
                   <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left' }}>Ticker</th>
                   <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left' }}>Regime</th>
                   <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>Trades</th>
-                  <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>Return</th>
-                  <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>Buy&Hold</th>
+                  <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>Gross</th>
+                  <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>Net</th>
+                  <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>BE bps</th>
                   <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>vs Buy&Hold</th>
-                  <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>Random (μ±σ)</th>
-                  <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>vs Random</th>
                   <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right' }}>z-score</th>
                   <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left' }}>Verdict</th>
                 </tr>
@@ -237,35 +262,38 @@ export default function Compare() {
                       <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '0.3rem 0.5rem' }}>{r.strategy}</td>
                         <td style={{ padding: '0.3rem 0.5rem' }}>{r.ticker}</td>
-                        <td colSpan={9} style={{ padding: '0.3rem 0.5rem', color: 'var(--rose)' }}>{r.error}</td>
+                        <td colSpan={8} style={{ padding: '0.3rem 0.5rem', color: 'var(--rose)' }}>{r.error}</td>
                       </tr>
                     )
                   }
-                  const retColor = r.total_return_pct >= 0 ? 'var(--emerald)' : 'var(--rose)'
-                  const bhColor = r.edge_vs_buyhold_pct >= 0 ? 'var(--emerald)' : 'var(--rose)'
-                  const randColor = r.edge_vs_random_pct >= 0 ? 'var(--emerald)' : 'var(--rose)'
+                  const netRet = r.total_return_pct_net ?? r.total_return_pct
+                  const vsBh = r.edge_vs_buyhold_net_pct ?? r.edge_vs_buyhold_pct
+                  const z = r.z_score_net ?? r.z_score
+                  const tone = (netView ? r.verdict_tone_net : r.verdict_tone) ?? r.verdict_tone
+                  const label = (netView ? r.verdict_label_net : r.verdict_label) ?? r.verdict_label
+                  const be = r.breakeven_bps_per_side
+                  const netColor = netRet >= 0 ? 'var(--emerald)' : 'var(--rose)'
+                  const bhColor = vsBh >= 0 ? 'var(--emerald)' : 'var(--rose)'
+                  const beColor = be == null ? 'var(--text-dim)' : (be >= costBps ? 'var(--emerald)' : 'var(--rose)')
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>{r.strategy}</td>
                       <td style={{ padding: '0.3rem 0.5rem' }}>{r.ticker}</td>
                       <td style={{ padding: '0.3rem 0.5rem', color: REGIME_COLOR[r.regime] || 'var(--text)' }}>{r.regime}</td>
                       {numCell(r.total_trades)}
-                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: retColor, fontWeight: 600 }}>{fmtPct(r.total_return_pct)}</td>
-                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: 'var(--text-dim)' }}>{fmtPct(r.buy_hold_pct)}</td>
-                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bhColor }}>{fmtPct(r.edge_vs_buyhold_pct)}</td>
-                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: 'var(--text-dim)' }}>
-                        {fmtPct(r.random_mean_pct)}±{r.random_std_pct?.toFixed(2)}
-                      </td>
-                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: randColor, fontWeight: 600 }}>{fmtPct(r.edge_vs_random_pct)}</td>
-                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: TONE_COLOR[r.verdict_tone] || 'var(--text)', fontWeight: 600 }}>
-                        {r.z_score ? r.z_score.toFixed(2) : '—'}
+                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: 'var(--text-dim)' }}>{fmtPct(r.total_return_pct)}</td>
+                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: netColor, fontWeight: 600 }}>{fmtPct(netRet)}</td>
+                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: beColor }}>{be == null ? '—' : be.toFixed(1)}</td>
+                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bhColor }}>{fmtPct(vsBh)}</td>
+                      <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: TONE_COLOR[tone] || 'var(--text)', fontWeight: 600 }}>
+                        {z ? z.toFixed(2) : '—'}
                       </td>
                       <td style={{ padding: '0.3rem 0.5rem' }}>
                         <span className="tag" style={{
-                          color: TONE_COLOR[r.verdict_tone] || 'var(--text-dim)',
-                          borderColor: TONE_COLOR[r.verdict_tone] || 'var(--border)',
+                          color: TONE_COLOR[tone] || 'var(--text-dim)',
+                          borderColor: TONE_COLOR[tone] || 'var(--border)',
                         }}>
-                          {r.verdict_label}
+                          {label}
                         </span>
                       </td>
                     </tr>
@@ -275,9 +303,15 @@ export default function Compare() {
             </table>
           </div>
           <div style={{ padding: '0.5rem 1rem', fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+            <strong>Costs:</strong> fees + slippage are charged on BOTH fills of every trade
+            (net per trade = exit·(1−c) / entry·(1+c) − 1, c = bps/side). The random baseline pays the same cost.
+            <strong> BE bps</strong> = the per-side cost at which the gross edge is exactly consumed —
+            green means it still clears your selected cost, red means costs eat it.
+            <br />
             Random baseline: same trade count, held for the strategy's average hold time, shuffled 60× per cell.
-            z = (strategy return − random mean) / random std. z ≥ 1.5 = strong edge, ≥ 1.0 = edge, 0.5–1 = weak, below = no better than noise.
-            Trades &lt; 10 = not enough data to judge. Returns are gross of fees/slippage — subtract ~0.1–0.2%/trade for realistic edge.
+            z = (strategy total return − random total return) / random std — both sides are sums, so magnitudes are honest
+            (values were ~n_trades× inflated before Sep 2026). z ≥ 1.5 = strong edge, ≥ 1.0 = edge, 0.5–1 = weak, below = noise.
+            Trades &lt; 10 = not enough data to judge. Long windows plus costs are the honest test.
           </div>
         </div>
       )}

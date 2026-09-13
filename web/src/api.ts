@@ -229,6 +229,24 @@ export interface HarnessRow {
   verdict: string
   verdict_label: string
   verdict_tone: string
+  // ── net-of-cost block (present when cost_bps_per_side > 0) ──
+  cost_bps_per_side?: number
+  total_return_pct_net?: number
+  avg_return_pct_net?: number
+  win_rate_net?: number
+  max_drawdown_pct_net?: number
+  profit_factor_net?: number
+  sharpe_ratio_net?: number
+  edge_vs_buyhold_net_pct?: number
+  random_mean_net_pct?: number
+  random_std_net_pct?: number
+  edge_vs_random_net_pct?: number
+  cost_drag_pct?: number
+  breakeven_bps_per_side?: number | null
+  z_score_net?: number
+  verdict_net?: string
+  verdict_label_net?: string
+  verdict_tone_net?: string
 }
 
 export interface HarnessResult {
@@ -242,6 +260,12 @@ export interface HarnessResult {
     no_edges: number
     insufficient: number
     errors: number
+    cost_bps_per_side?: number
+    edges_net?: number
+    weak_edges_net?: number
+    no_edges_net?: number
+    insufficient_net?: number
+    profitable_net?: number
   }
 }
 
@@ -250,12 +274,13 @@ export async function fetchHarnessCompare(
   tickers: string[],
   interval: string,
   period: string,
-  random_iters = 60
+  random_iters = 60,
+  costBpsPerSide = 0
 ): Promise<HarnessResult> {
   const res = await fetch(`${BASE}/harness/compare`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dsls, tickers, interval, period, random_iters }),
+    body: JSON.stringify({ dsls, tickers, interval, period, random_iters, cost_bps_per_side: costBpsPerSide }),
   })
   if (!res.ok) {
     const err = await res.json()
