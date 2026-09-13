@@ -169,7 +169,13 @@ def compare_strategy(
         "error": None,
     }
 
-    df = fetch_ohlcv(ticker, interval=interval, period=period)
+    try:
+        # allow_synthetic=False: a silent synthetic fallback would score fake
+        # candles and report a confident, meaningless verdict on /compare.
+        df = fetch_ohlcv(ticker, interval=interval, period=period, allow_synthetic=False)
+    except Exception as e:
+        row["error"] = f"Data unavailable (refusing synthetic fallback): {type(e).__name__}: {e}"
+        return row
     if df is None or df.empty or len(df) < 20:
         row["error"] = "Not enough data"
         return row
