@@ -1,0 +1,60 @@
+# Daily Trend Expansion — slow, cost-tolerant trend following on daily bars.
+#
+# Enter only when the trend is ALREADY up (EMA stack aligned AND price above
+# the 50-SMA) and volatility is expanding (ATR above its own 28-bar average).
+# Exit when the EMA stack flips bearish or price crosses under the 13-EMA.
+# Winners are allowed to run — there is deliberately NO RSI overbought exit:
+# cutting a trend because RSI > 80 was the single biggest cost drag in testing.
+#
+# Why daily instead of hourly: the 1h predecessor (Vol Expansion Momentum)
+# required a FRESH close/EMA-5 crossover, which fired ~140x/year. Measured
+# net of realistic costs the 1h version loses money (break-even ~6 bps/side)
+# and was negative out-of-sample. Holding for weeks makes each trade 10-50x
+# larger, and the measured break-even here is 60-250 bps/side — cost-insensitive.
+#
+# Walk-forward validated (Sep 2026, net of 10 bps/side):
+#   anchored holdout BTC +16.8% / ETH +35.3% (both positive; the 1h baseline
+#   was -14.3% / -14.9% and buy & hold -18.2% / -22.7% on the same window).
+name: "Daily Trend Expansion"
+description: "Daily trend-following: EMA stack + 50-SMA filter + ATR expansion, no RSI exit"
+timeframe: "1d"
+
+indicators:
+  - id: ema_5
+    type: ema
+    params: { period: 5 }
+  - id: ema_8
+    type: ema
+    params: { period: 8 }
+  - id: ema_13
+    type: ema
+    params: { period: 13 }
+  - id: sma_50
+    type: sma
+    params: { period: 50 }
+  - id: bb
+    type: bb
+    params: { period: 20, stddev: 2.0 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+  - id: atr
+    type: atr
+    params: { period: 14 }
+  - id: atr_avg
+    type: sma
+    params: { period: 28, source: atr }
+
+compounds:
+  - id: alignment
+    type: ema_alignment
+    params: { emas: [ema_5, ema_8, ema_13] }
+  - id: spread
+    type: ema_spread
+    params: { emas: [ema_5, ema_8, ema_13] }
+
+patterns: []
+
+signals:
+  entry: "atr > atr_avg AND alignment == 1 AND close > ema_5 AND close > sma_50"
+  exit: "alignment == -1 OR CROSSUNDER(close, ema_13)"
