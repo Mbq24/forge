@@ -1,0 +1,84 @@
+# Daily Trend Expansion — 3-of-4 entry variant (2026-09-19)
+#
+# CHANGE: stop requiring volatility expansion (ATR > its 28-bar average) as a
+# PRECONDITION of entry. Enter when trend structure and location are right —
+# 3 of 4 conditions:
+#     alignment == 1  AND  close > ema_5  AND  close > sma_50
+# atr/atr_avg are still computed and reported (the monitoring digest reads them),
+# they just no longer gate the entry.
+#
+# MEASURED (Forge harness, net of 10 bps/side) — 3/4 vs the live 4/4 gate:
+#   1d/1y BTC  +13.60% (12 trades) vs +5.74%  (2)
+#   1d/2y BTC  +49.01% (25)        vs +37.72% (11)
+#   1d/5y BTC  +95.45% (65)        vs +95.88% (31)   ~tie, 2x the trades
+#   1d/1y ETH  +7.85%  (15)        vs -4.68%  (4)
+#   1d/2y ETH  +71.48% (27)        vs +52.61% (12)
+#   1d/5y ETH  +50.96% (68)        vs +30.91% (40)
+#
+# WALK-FORWARD (the gate — an in-sample win is not evidence):
+#   anchored holdout, 1,217 validate bars from 2025-01-18, net 10 bps/side:
+#     BTC +25.15% (21 trades, 33% win) vs 4/4 +16.82% (8)  · buy&hold -22.51%
+#     ETH +55.52% (24 trades, 25% win) vs 4/4 +30.21% (10) · buy&hold -21.01%
+#   rolling 6 folds (train 730 / test 182 / step 182), mean net per fold:
+#     BTC 3/4 +17.13% (4/6 positive) vs 4/4 +13.98% (4/6)
+#     ETH 3/4 +16.22% (4/6 positive) vs 4/4 +12.11% (3/6)
+#   Per-fold re-selection of the variant scored WORSE than always-3/4 on both
+#   instruments (+13.02 / +6.31) — same lesson as before: pick one fixed rule,
+#   do not add selection logic.
+#
+# COSTS: ~13 trades/year keeps break-even at 84-143 bps/side (realistic retail is
+# 10-25), so the extra frequency does NOT reintroduce the cost fragility that
+# killed the 1h predecessor.
+#
+# KNOWN TRADE-OFF — do not forget this: dropping the gate deepens drawdowns.
+#   5y maxDD BTC 45.4% vs 33.7%; ETH 47.7% vs 39.9%. Worst rolling fold is also
+#   worse (BTC -24.1% vs -7.2%). Fewer, later trades were insurance against the
+#   chop; this variant pays for its extra upside with a rougher ride.
+#
+# REJECTED ALTERNATIVE: pairing this entry with a TIGHTER exit (CROSSUNDER(close,
+# ema_8)) measured worse in all six cells (5y BTC +76.9% vs +95.5%), as did
+# tightening the exit on the 4/4 gate. If the 4th condition is to drive
+# "conservative management", a tighter exit is the wrong lever.
+name: "Daily Trend Expansion 3of4"
+description: "Daily trend following on 3 of 4 conditions — ATR expansion no longer gates entry"
+timeframe: "1d"
+
+indicators:
+  - id: ema_5
+    type: ema
+    params: { period: 5 }
+  - id: ema_8
+    type: ema
+    params: { period: 8 }
+  - id: ema_13
+    type: ema
+    params: { period: 13 }
+  - id: sma_50
+    type: sma
+    params: { period: 50 }
+  - id: bb
+    type: bb
+    params: { period: 20, stddev: 2.0 }
+  - id: rsi
+    type: rsi
+    params: { period: 14 }
+  - id: atr
+    type: atr
+    params: { period: 14 }
+  - id: atr_avg
+    type: sma
+    params: { period: 28, source: atr }
+
+compounds:
+  - id: alignment
+    type: ema_alignment
+    params: { emas: [ema_5, ema_8, ema_13] }
+  - id: spread
+    type: ema_spread
+    params: { emas: [ema_5, ema_8, ema_13] }
+
+patterns: []
+
+signals:
+  entry: "alignment == 1 AND close > ema_5 AND close > sma_50"
+  exit: "alignment == -1 OR CROSSUNDER(close, ema_13)"
